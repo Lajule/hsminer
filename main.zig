@@ -29,7 +29,7 @@ pub fn main() anyerror!void {
     ) orelse return error.LookupFailed;
 
     _ = getFunctionList(@ptrCast(&sym));
-    std.debug.print("sym \"{}\"\n", .{sym});
+    std.debug.print("sym {}\n", .{sym});
 
     var args: c.CK_C_INITIALIZE_ARGS = .{ .flags = c.CKF_OS_LOCKING_OK };
     _ = sym.C_Initialize.?(&args);
@@ -42,14 +42,21 @@ pub fn main() anyerror!void {
     const present: c.CK_BBOOL = c.CK_TRUE;
     var slot_count: c.CK_ULONG = undefined;
     _ = sym.C_GetSlotList.?(present, null, &slot_count);
-    std.debug.print("slot_count \"{}\"\n", .{slot_count});
+    std.debug.print("slot_count {}\n", .{slot_count});
 
     const slot_list = try allocator.alloc(c.CK_ULONG, slot_count);
     errdefer allocator.free(slot_list);
-
     _ = sym.C_GetSlotList.?(present, slot_list.ptr, &slot_count);
     var slot_info: c.CK_SLOT_INFO = undefined;
-    _ = sym.C_GetSlotInfo.?(slot_list[0], &slot_info);
-    const slot_description: [64]u8 = slot_info.slotDescription;
-    std.debug.print("slot_info \"{s}\"\n", .{slot_description});
+    for (slot_list) |slot| {
+        _ = sym.C_GetSlotInfo.?(slot, &slot_info);
+    	const slot_description: [64]u8 = slot_info.slotDescription;
+    	std.debug.print("slot_info {} \"{s}\"\n", .{slot, slot_description});
+
+        var token_info: c.CK_TOKEN_INFO = undefined;
+        _ = sym.C_GetTokenInfo.?(slot, &token_info);
+	const label: [32]u8 = token_info.label;
+	const model: [16]u8 = token_info.model;
+	std.debug.print("token \"{s}\" \"{s}\"\n", .{label, model});
+    }
 }
