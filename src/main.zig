@@ -53,13 +53,20 @@ pub fn main() anyerror!void {
         _ = sym.C_GetTokenInfo.?(slot, &token_info);
         const label: [32]u8 = token_info.label;
         const model: [16]u8 = token_info.model;
-        std.debug.print("token \"{s}\" \"{s}\"\n", .{ label, model });
+        std.debug.print("token {} \"{s}\" \"{s}\"\n", .{ (token_info.flags & c.CKF_TOKEN_INITIALIZED) == c.CKF_TOKEN_INITIALIZED, label, model });
     }
 
     var handle: c.CK_SESSION_HANDLE = 0;
-    const r = sym.C_OpenSession.?(slot_list[0], c.CKF_RW_SESSION | c.CKF_SERIAL_SESSION, null, null, &handle);
-    std.debug.print("session {} {}\n", .{ r, handle });
+    var r = sym.C_OpenSession.?(slot_list[0], c.CKF_RW_SESSION | c.CKF_SERIAL_SESSION, null, null, &handle);
+    std.debug.print("session {} {}\n", .{ r == c.CKR_TOKEN_NOT_RECOGNIZED, handle });
 
+    r = sym.C_Login.?(handle, c.CKU_USER, @constCast("1234".ptr), 4);
+    std.debug.print("login {}\n", .{r});
+}
+
+const expect = std.testing.expect;
+
+test "mustache" {
     const template =
         \\ {{=<< >>=}}
         \\ * Users:
@@ -95,6 +102,6 @@ pub fn main() anyerror!void {
     defer ret.deinit();
 
     if (ret.str()) |s| {
-        std.debug.print("\"{s}\"\n", .{s});
+        try expect(s.len == 65);
     }
 }
