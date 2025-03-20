@@ -1,10 +1,5 @@
 const c = @cImport({
-    @cDefine("CK_PTR", "*");
-    @cDefine("CK_DEFINE_FUNCTION(returnType, name)", "returnType name");
-    @cDefine("CK_DECLARE_FUNCTION(returnType, name)", "returnType name");
-    @cDefine("CK_DECLARE_FUNCTION_POINTER(returnType, name)", "returnType (* name)");
-    @cDefine("CK_CALLBACK_FUNCTION(returnType, name)", "returnType (* name)");
-    @cInclude("pkcs11.h");
+    @cInclude("pkcs11zig.h");
 });
 const std = @import("std");
 const Mustache = @import("zap").Mustache;
@@ -60,6 +55,10 @@ pub fn main() anyerror!void {
         const model: [16]u8 = token_info.model;
         std.debug.print("token \"{s}\" \"{s}\"\n", .{ label, model });
     }
+
+    var handle: c.CK_SESSION_HANDLE = 0;
+    const r = sym.C_OpenSession.?(slot_list[0], c.CKF_RW_SESSION | c.CKF_SERIAL_SESSION, null, null, &handle);
+    std.debug.print("session {} {}\n", .{ r, handle });
 
     const template =
         \\ {{=<< >>=}}
