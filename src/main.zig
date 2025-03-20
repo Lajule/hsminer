@@ -7,6 +7,7 @@ const c = @cImport({
     @cInclude("pkcs11.h");
 });
 const std = @import("std");
+const Mustache = @import("zap").Mustache;
 
 var getFunctionList: *const fn (**c.CK_FUNCTION_LIST) callconv(.c) c.CK_RV = undefined;
 
@@ -29,7 +30,6 @@ pub fn main() anyerror!void {
     ) orelse return error.LookupFailed;
 
     _ = getFunctionList(@ptrCast(&sym));
-    std.debug.print("sym {}\n", .{sym});
 
     var args: c.CK_C_INITIALIZE_ARGS = .{ .flags = c.CKF_OS_LOCKING_OK };
     _ = sym.C_Initialize.?(&args);
@@ -47,6 +47,7 @@ pub fn main() anyerror!void {
     const slot_list = try allocator.alloc(c.CK_ULONG, slot_count);
     errdefer allocator.free(slot_list);
     _ = sym.C_GetSlotList.?(present, slot_list.ptr, &slot_count);
+
     var slot_info: c.CK_SLOT_INFO = undefined;
     for (slot_list) |slot| {
         _ = sym.C_GetSlotInfo.?(slot, &slot_info);
@@ -58,5 +59,43 @@ pub fn main() anyerror!void {
 	const label: [32]u8 = token_info.label;
 	const model: [16]u8 = token_info.model;
 	std.debug.print("token \"{s}\" \"{s}\"\n", .{label, model});
+    }
+
+    const template =
+        \\ {{=<< >>=}}
+        \\ * Users:
+        \\ <<#users>>
+        \\ <<id>>. <<& name>> (<<name>>)
+        \\ <</users>>
+        \\ Nested: <<& nested.item >>.
+    ;
+
+    var mustache = Mustache.fromData(template) catch return;
+    defer mustache.deinit();
+
+    const User = struct {
+        name: []const u8,
+        id: isize,
+    };
+
+    const ret = mustache.build(.{
+        .users = [_]User{
+            .{
+                .name = "Rene",
+                .id = 1,
+            },
+            .{
+                .name = "Caro",
+                .id = 6,
+            },
+        },
+        .nested = .{
+            .item = "nesting works",
+        },
+    });
+    defer ret.deinit();
+
+    if (ret.str()) |s| {
+       std.debug.print("\"{s}\"\n", .{s});
     }
 }
