@@ -17,7 +17,7 @@ pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    const dll_path = "/usr/lib/softhsm/libsofthsm2.so";
+    const dll_path = std.mem.span(std.os.argv[1]);
 
     std.debug.print("loading dll from \"{s}\"\n", .{dll_path});
     var dyn_lib = std.DynLib.open(dll_path) catch {
@@ -51,14 +51,14 @@ pub fn main() anyerror!void {
     var slot_info: c.CK_SLOT_INFO = undefined;
     for (slot_list) |slot| {
         _ = sym.C_GetSlotInfo.?(slot, &slot_info);
-    	const slot_description: [64]u8 = slot_info.slotDescription;
-    	std.debug.print("slot_info {} \"{s}\"\n", .{slot, slot_description});
+        const slot_description: [64]u8 = slot_info.slotDescription;
+        std.debug.print("slot_info {} \"{s}\"\n", .{ slot, slot_description });
 
         var token_info: c.CK_TOKEN_INFO = undefined;
         _ = sym.C_GetTokenInfo.?(slot, &token_info);
-	const label: [32]u8 = token_info.label;
-	const model: [16]u8 = token_info.model;
-	std.debug.print("token \"{s}\" \"{s}\"\n", .{label, model});
+        const label: [32]u8 = token_info.label;
+        const model: [16]u8 = token_info.model;
+        std.debug.print("token \"{s}\" \"{s}\"\n", .{ label, model });
     }
 
     const template =
@@ -96,6 +96,6 @@ pub fn main() anyerror!void {
     defer ret.deinit();
 
     if (ret.str()) |s| {
-       std.debug.print("\"{s}\"\n", .{s});
+        std.debug.print("\"{s}\"\n", .{s});
     }
 }
