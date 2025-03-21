@@ -2,9 +2,6 @@ const c = @cImport({
     @cInclude("pkcs11zig.h");
 });
 const std = @import("std");
-const Mustache = @import("zap").Mustache;
-
-var getFunctionList: *const fn (**c.CK_FUNCTION_LIST) callconv(.c) c.CK_RV = undefined;
 
 var sym: *c.CK_FUNCTION_LIST = undefined;
 
@@ -13,17 +10,14 @@ pub fn main() anyerror!void {
     const allocator = gpa.allocator();
 
     const dll_path = std.mem.span(std.os.argv[1]);
-
     std.debug.print("loading dll from \"{s}\"\n", .{dll_path});
+
     var dyn_lib = std.DynLib.open(dll_path) catch {
         return error.OpenFail;
     };
 
-    getFunctionList = dyn_lib.lookup(
-        @TypeOf(getFunctionList),
-        "C_GetFunctionList",
-    ) orelse return error.LookupFailed;
-
+    var getFunctionList: *const fn (**c.CK_FUNCTION_LIST) callconv(.c) c.CK_RV = undefined;
+    getFunctionList = dyn_lib.lookup(@TypeOf(getFunctionList), "C_GetFunctionList") orelse return error.LookupFailed;
     _ = getFunctionList(@ptrCast(&sym));
 
     var args: c.CK_C_INITIALIZE_ARGS = .{ .flags = c.CKF_OS_LOCKING_OK };
@@ -64,6 +58,7 @@ pub fn main() anyerror!void {
     std.debug.print("login {}\n", .{r});
 }
 
+const Mustache = @import("zap").Mustache;
 const expect = std.testing.expect;
 
 test "mustache" {
