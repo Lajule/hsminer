@@ -40,7 +40,7 @@ pub fn build(b: *std.Build) void {
         .root_module = exe_mod,
     });
 
-    exe.addIncludePath(b.path("pkcs11"));
+    exe.addIncludePath(b.path("src"));
     exe.linkSystemLibrary("dl");
 
     // This declares intent for the executable to be installed into the
