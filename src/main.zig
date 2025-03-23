@@ -2,12 +2,14 @@ const c = @cImport({
     @cInclude("pkcs11zig.h");
 });
 const std = @import("std");
+const HSMiner = @import("hsminer.zig").HSMiner;
 
 var sym: *c.CK_FUNCTION_LIST = undefined;
 
 pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
+    HSMiner.alloc = allocator;
 
     const dll_path = std.mem.span(std.os.argv[1]);
     std.debug.print("loading dll from \"{s}\"\n", .{dll_path});
