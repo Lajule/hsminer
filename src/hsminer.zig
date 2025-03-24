@@ -12,9 +12,7 @@ pub const HSMiner = struct {
 
     pub var sym: *c.CK_FUNCTION_LIST = undefined;
 
-    pub fn on_request(_: zap.Request) void {}
-
-    pub fn render() void {
+    pub fn on_request(r: zap.Request) void {
         var mustache = Mustache.fromData(template) catch return;
         defer mustache.deinit();
 
@@ -41,7 +39,8 @@ pub const HSMiner = struct {
         defer ret.deinit();
 
         if (ret.str()) |s| {
-            std.debug.print("render \"{s}\"\n", .{s});
+            //r.setContentTypeFromPath() catch return;
+            r.sendBody(s) catch return;
         }
     }
 };

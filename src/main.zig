@@ -2,6 +2,7 @@ const c = @cImport({
     @cInclude("pkcs11zig.h");
 });
 const std = @import("std");
+const zap = @import("zap");
 const HSMiner = @import("hsminer.zig").HSMiner;
 
 pub fn main() anyerror!void {
@@ -57,5 +58,18 @@ pub fn main() anyerror!void {
     r = HSMiner.sym.C_Login.?(handle, c.CKU_USER, @constCast("1234".ptr), 4);
     std.debug.print("login {}\n", .{r});
 
-    HSMiner.render();
+    var listener = zap.HttpListener.init(.{
+        .port = 3000,
+        .on_request = HSMiner.on_request,
+        .log = false,
+    });
+    try listener.listen();
+
+    std.debug.print("Listening on 0.0.0.0:3000\n", .{});
+
+    // start worker threads
+    zap.start(.{
+        .threads = 2,
+        .workers = 1,
+    });
 }
