@@ -6,8 +6,6 @@ const zap = @import("zap");
 
 const index = @embedFile("index.mustache");
 const favicon = @embedFile("favicon.ico");
-const script = @embedFile("script.js");
-const style = @embedFile("style.css");
 
 const Self = @This();
 
@@ -54,14 +52,4 @@ pub fn getIndex(self: *Self, req: zap.Request) void {
 pub fn getFavicon(_: *Self, req: zap.Request) void {
     req.setContentTypeFromPath() catch return;
     req.sendBody(favicon) catch return;
-}
-
-pub fn getScript(_: *Self, req: zap.Request) void {
-    req.setContentTypeFromPath() catch return;
-    req.sendBody(script) catch return;
-}
-
-pub fn getStyle(_: *Self, req: zap.Request) void {
-    req.setContentTypeFromPath() catch return;
-    req.sendBody(style) catch return;
 }

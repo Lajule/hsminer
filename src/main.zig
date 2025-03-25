@@ -33,8 +33,6 @@ pub fn main() !void {
 
     try router.handle_func("/", &hsminer, &HSMiner.getIndex);
     try router.handle_func("/favicon.ico", &hsminer, &HSMiner.getFavicon);
-    try router.handle_func("/script.js", &hsminer, &HSMiner.getScript);
-    try router.handle_func("/style.css", &hsminer, &HSMiner.getStyle);
 
     //const tls = try zap.Tls.init(.{
     //    .server_name = "localhost:4443",
