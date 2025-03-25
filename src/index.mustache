@@ -10,6 +10,8 @@
 </head>
 <body>
   <h1>{{manufacturer_id}}</h1>
-  <h2>Slots count: {{slot_count}}</h2>
+  {{#slots}}
+  <p>description: {{description}}<br>model: {{model}}<br>label: {{label}}<br>{{#initialized}}<button>Login</button>{{/initialized}}</p>
+  {{/slots}}
 </body>
 </html>
