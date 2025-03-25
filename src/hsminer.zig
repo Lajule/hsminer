@@ -4,43 +4,57 @@ const c = @cImport({
 const std = @import("std");
 const zap = @import("zap");
 
-const Mustache = zap.Mustache;
-const template = @embedFile("index.mustache");
+const index = @embedFile("index.mustache");
+const favicon = @embedFile("favicon.ico");
+const script = @embedFile("script.js");
+const style = @embedFile("style.css");
 
-pub const HSMiner = struct {
-    pub var alloc: std.mem.Allocator = undefined;
+const Self = @This();
 
-    pub var sym: *c.CK_FUNCTION_LIST = undefined;
+allocator: std.mem.Allocator,
+sym: *c.CK_FUNCTION_LIST,
+manufacturer_id: [32]u8,
+template: zap.Mustache,
 
-    pub fn on_request(r: zap.Request) void {
-        var mustache = Mustache.fromData(template) catch return;
-        defer mustache.deinit();
+pub fn init(allocator: std.mem.Allocator, sym: *c.CK_FUNCTION_LIST) !Self {
+    var args: c.CK_C_INITIALIZE_ARGS = .{ .flags = c.CKF_OS_LOCKING_OK };
+    _ = sym.C_Initialize.?(&args);
 
-        const User = struct {
-            name: []const u8,
-            id: isize,
-        };
+    var info: c.CK_INFO = undefined;
+    _ = sym.C_GetInfo.?(&info);
 
-        const ret = mustache.build(.{
-            .users = [_]User{
-                .{
-                    .name = "Rene",
-                    .id = 1,
-                },
-                .{
-                    .name = "Caro",
-                    .id = 6,
-                },
-            },
-            .nested = .{
-                .item = "nesting works",
-            },
-        });
-        defer ret.deinit();
+    return .{
+        .allocator = allocator,
+        .sym = sym,
+        .manufacturer_id = info.manufacturerID,
+        .template = try zap.Mustache.fromData(index),
+    };
+}
 
-        if (ret.str()) |s| {
-            //r.setContentTypeFromPath() catch return;
-            r.sendBody(s) catch return;
-        }
-    }
-};
+pub fn deinit(self: *Self) void {
+    self.template.deinit();
+}
+
+pub fn getIndex(self: *Self, req: zap.Request) void {
+    const ret = self.template.build(.{
+        .manufacturer_id = self.manufacturer_id,
+    });
+    defer ret.deinit();
+
+    req.sendBody(ret.str().?) catch return;
+}
+
+pub fn getFavicon(_: *Self, req: zap.Request) void {
+    req.setContentTypeFromPath() catch return;
+    req.sendBody(favicon) catch return;
+}
+
+pub fn getScript(_: *Self, req: zap.Request) void {
+    req.setContentTypeFromPath() catch return;
+    req.sendBody(script) catch return;
+}
+
+pub fn getStyle(_: *Self, req: zap.Request) void {
+    req.setContentTypeFromPath() catch return;
+    req.sendBody(style) catch return;
+}
