@@ -10,8 +10,14 @@
 </head>
 <body>
   <h1>{{manufacturer_id}}</h1>
+  <ul>
   {{#slots}}
-  <p>description: {{description}}<br>model: {{model}}<br>label: {{label}}<br>{{#initialized}}<button>Login</button>{{/initialized}}</p>
+    <li>
+      <p>{{description}}</p>
+      <p>{{label}}</p>
+      {{#initialized}}<form action="/"><input type="hidden" name="id" value="{{id}}"><input type="submit" value="Login"></form>{{/initialized}}
+    </li>
   {{/slots}}
+  </ul>
 </body>
 </html>

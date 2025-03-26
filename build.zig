@@ -26,10 +26,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const zap = b.dependency("zap", .{
-        .target = target,
-        .optimize = optimize,
-    });
+    const zap = b.dependency("zap", .{ .target = target, .optimize = optimize, .openssl = true });
 
     exe_mod.addImport("zap", zap.module("zap"));
 

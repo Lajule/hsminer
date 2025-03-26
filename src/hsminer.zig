@@ -10,6 +10,7 @@ const favicon = @embedFile("favicon.ico");
 const Self = @This();
 
 const Slot = struct {
+    id: u32,
     description: [64]u8,
     label: [32]u8,
     model: [16]u8,
@@ -39,7 +40,7 @@ pub fn init(allocator: std.mem.Allocator, sym: *c.CK_FUNCTION_LIST) !Self {
     const slots = try allocator.alloc(Slot, slot_count);
     errdefer allocator.free(slots);
 
-    for (0.., slot_list) |i, slot| {
+    for (slot_list, 0..) |slot, i| {
         var slot_info: c.CK_SLOT_INFO = undefined;
         _ = sym.C_GetSlotInfo.?(slot, &slot_info);
 
@@ -47,6 +48,7 @@ pub fn init(allocator: std.mem.Allocator, sym: *c.CK_FUNCTION_LIST) !Self {
         _ = sym.C_GetTokenInfo.?(slot, &token_info);
 
         slots[i] = .{
+            .id = @intCast(slot),
             .description = slot_info.slotDescription,
             .label = token_info.label,
             .model = token_info.model,
@@ -69,6 +71,15 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn getIndex(self: *Self, req: zap.Request) void {
+    req.parseQuery();
+    if (req.getParamStr(self.allocator, "id", false)) |maybe_id| {
+        if (maybe_id) |*s| {
+            std.log.info("?id={s}\n", .{s.str});
+        }
+    } else |err| {
+        std.log.err("Error: {any}\n", .{err});
+    }
+
     const ret = self.template.build(.{
         .manufacturer_id = self.manufacturer_id,
         .slots = self.slots,
