@@ -6,12 +6,12 @@ const zap = @import("zap");
 const HSMiner = @import("hsminer.zig");
 
 fn not_found(req: zap.Request) void {
-    std.log.info("not found handler\n", .{});
+    std.log.info("not found handler", .{});
     req.sendBody("Not found") catch return;
 }
 
 fn loadModule(path: []const u8) !*c.CK_FUNCTION_LIST {
-    std.log.info("loading module from \"{s}\"\n", .{path});
+    std.log.info("loading module from \"{s}\"", .{path});
     var dyn_lib = try std.DynLib.open(path);
 
     var getFunctionList: *const fn (**c.CK_FUNCTION_LIST) callconv(.c) c.CK_RV = undefined;
@@ -36,7 +36,7 @@ pub fn main() !void {
     });
     defer router.deinit();
 
-    try router.handle_func("/", &hsminer, &HSMiner.getIndex);
+    try router.handle_func("/", &hsminer, &HSMiner.onRequest);
     try router.handle_func("/favicon.ico", &hsminer, &HSMiner.getFavicon);
 
     var tls: ?zap.Tls = null;
@@ -61,7 +61,7 @@ pub fn main() !void {
     });
     try listener.listen();
 
-    std.log.info("Listening on 0.0.0.0:3000\n", .{});
+    std.log.info("Listening on 0.0.0.0:3000", .{});
 
     zap.start(.{
         .threads = 2,

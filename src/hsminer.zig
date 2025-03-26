@@ -70,14 +70,9 @@ pub fn deinit(self: *Self) void {
     self.template.deinit();
 }
 
-pub fn getIndex(self: *Self, req: zap.Request) void {
-    req.parseQuery();
-    if (req.getParamStr(self.allocator, "id", false)) |maybe_id| {
-        if (maybe_id) |*s| {
-            std.log.info("?id={s}\n", .{s.str});
-        }
-    } else |err| {
-        std.log.err("Error: {any}\n", .{err});
+pub fn onRequest(self: *Self, req: zap.Request) void {
+    if (req.body) |body| {
+        std.log.info("Body is {s}", .{body});
     }
 
     const ret = self.template.build(.{

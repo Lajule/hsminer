@@ -15,7 +15,7 @@
     <li>
       <p>{{description}}</p>
       <p>{{label}}</p>
-      {{#initialized}}<form action="/"><input type="hidden" name="id" value="{{id}}"><input type="submit" value="Login"></form>{{/initialized}}
+      {{#initialized}}<form action="/" method="POST"><input type="hidden" name="id" value="{{id}}"><input type="submit" value="Login"></form>{{/initialized}}
     </li>
   {{/slots}}
   </ul>
