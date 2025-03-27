@@ -3,32 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title></title>
+  <title>HSMiner</title>
   <meta name="description" content="">
   <link rel="icon" href="/favicon.ico" sizes="any">
   <meta name="theme-color" content="#fafafa">
 </head>
 <body>
-  <h1>{{manufacturer_id}}</h1>
-  <ul>
-  {{^logged}}
-    {{#slots}}
-    <li>
-      <p>{{description}}</p>
-      <form action="/login" method="POST">
-        <input type="hidden" name="slot_id" value="{{slot_id}}" />
-        <input type="password" name="pin" required />
-        <label>PIN</label>
-        <input type="submit" />
-      </form>
-    </li>
-    {{/slots}}
-  {{/logged}}
-  {{#logged}}
-      <form action="/logout" method="POST">
-        <input type="submit" />
-      </form>
-  {{/logged}}
-  </ul>
+  <h1>HSMiner</h1>
 </body>
 </html>

@@ -30,7 +30,7 @@ pub fn build(b: *std.Build) void {
     const clap = b.dependency("clap", .{});
 
     exe_mod.addImport("zap", zap.module("zap"));
-    exe_mod.addImport("clap", zap.module("clap"));
+    exe_mod.addImport("clap", clap.module("clap"));
 
     // This creates another `std.Build.Step.Compile`, but this one builds an executable
     // rather than a static library.
