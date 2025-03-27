@@ -11,22 +11,24 @@
 <body>
   <h1>{{manufacturer_id}}</h1>
   <ul>
-  {{#slots}}
+  {{^logged}}
+    {{#slots}}
     <li>
       <p>{{description}}</p>
-      {{#initialized}}
       <form action="/login" method="POST">
-        <input type="hidden" name="id" value="{{id}}" />
+        <input type="hidden" name="slot_id" value="{{slot_id}}" />
         <input type="password" name="pin" required />
         <label>PIN</label>
         <input type="submit" />
       </form>
-      {{/initialized}}
     </li>
-  {{/slots}}
-  {{#handle}}
-  <p>{{handle}}</p>
-  {{/handle}}
+    {{/slots}}
+  {{/logged}}
+  {{#logged}}
+      <form action="/logout" method="POST">
+        <input type="submit" />
+      </form>
+  {{/logged}}
   </ul>
 </body>
 </html>

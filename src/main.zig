@@ -56,6 +56,7 @@ pub fn main() !void {
 
     try router.handle_func("/", &hsminer, &HSMiner.getIndex);
     try router.handle_func("/login", &hsminer, &HSMiner.postLogin);
+    try router.handle_func("/logout", &hsminer, &HSMiner.postLogout);
     try router.handle_func("/favicon.ico", &hsminer, &HSMiner.getFavicon);
 
     const tls = try loadTls();

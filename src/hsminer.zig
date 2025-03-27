@@ -15,7 +15,6 @@ sym: *c.CK_FUNCTION_LIST,
 info: c.CK_INFO,
 slot_list: []c.CK_ULONG,
 slot_infos: []c.CK_SLOT_INFO,
-token_infos: []c.CK_TOKEN_INFO,
 session_handle: c.CK_SESSION_HANDLE,
 
 pub fn init(allocator: std.mem.Allocator, sym: *c.CK_FUNCTION_LIST) !Self {
@@ -40,7 +39,6 @@ pub fn init(allocator: std.mem.Allocator, sym: *c.CK_FUNCTION_LIST) !Self {
 
     for (slot_list, 0..) |slot, i| {
         _ = sym.C_GetSlotInfo.?(slot, &slot_infos[i]);
-        _ = sym.C_GetTokenInfo.?(slot, &token_infos[i]);
     }
 
     return .{
@@ -50,7 +48,6 @@ pub fn init(allocator: std.mem.Allocator, sym: *c.CK_FUNCTION_LIST) !Self {
         .info = info,
         .slot_list = slot_list,
         .slot_infos = slot_infos,
-        .token_infos = token_infos,
         .session_handle = 0,
     };
 }
@@ -58,14 +55,13 @@ pub fn init(allocator: std.mem.Allocator, sym: *c.CK_FUNCTION_LIST) !Self {
 pub fn deinit(self: *Self) void {
     self.allocator.free(self.slot_list);
     self.allocator.free(self.slot_infos);
-    self.allocator.free(self.token_infos);
 
     self.template.deinit();
 }
 
 pub fn getIndex(self: *Self, req: zap.Request) void {
     const Slot = struct {
-        slot_id: u32,
+        slot_id: isize,
         description: [64]u8,
     };
 
@@ -80,6 +76,7 @@ pub fn getIndex(self: *Self, req: zap.Request) void {
     const ret = self.template.build(.{
         .manufacturer_id = self.info.manufacturerID,
         .slots = slots,
+        .logged = self.session_handle != 0,
     });
     defer ret.deinit();
 
@@ -92,19 +89,19 @@ pub fn postLogin(self: *Self, req: zap.Request) void {
     const params = req.parametersToOwnedList(self.allocator, false) catch return;
     defer params.deinit();
 
-    var id: u32 = 0;
-    var pin: u32 = 0;
+    var slot_id: isize = 0;
+    var pin: isize = 0;
 
     for (params.items) |kv| {
         if (kv.value) |v| {
-            if (std.mem.eql(u8, "id", kv.key.str)) {
-                id = @intCast(v.Int);
+            if (std.mem.eql(u8, "slot_id", kv.key.str)) {
+                slot_id = v.Int;
                 continue;
             }
 
             if (std.mem.eql(u8, "pin", kv.key.str)) {
                 switch (v) {
-                    .Int => |p| pin = @intCast(p),
+                    .Int => |p| pin = p,
                     else => {},
                 }
                 continue;
@@ -112,13 +109,20 @@ pub fn postLogin(self: *Self, req: zap.Request) void {
         }
     }
 
-    //var r = self.sym.C_OpenSession.?(id, c.CKF_RW_SESSION | c.CKF_SERIAL_SESSION, null, null, &self.handle);
-    //std.log.info("\"{}\"", .{r});
+    _ = self.sym.C_OpenSession.?(@intCast(slot_id), c.CKF_RW_SESSION | c.CKF_SERIAL_SESSION, null, null, &self.session_handle);
+    std.log.debug("session_handle: {}", .{self.session_handle});
 
-    //var buf: [4]u8 = undefined;
-    //const str_pin = std.fmt.bufPrint(&buf, "{}", .{pin}) catch return;
-    //r = self.sym.C_Login.?(self.handle, c.CKU_USER, str_pin.ptr, 4);
-    //std.log.info("\"{}\"", .{r});
+    var buf: [255]u8 = undefined;
+    const str_pin = std.fmt.bufPrint(&buf, "{}", .{pin}) catch return;
+    _ = self.sym.C_Login.?(self.session_handle, c.CKU_USER, str_pin.ptr, str_pin.len);
+
+    req.redirectTo("/", null) catch return;
+}
+
+pub fn postLogout(self: *Self, req: zap.Request) void {
+    _ = self.sym.C_Logout.?(self.session_handle);
+    _ = self.sym.C_CloseSession.?(self.session_handle);
+    self.session_handle = 0;
 
     req.redirectTo("/", null) catch return;
 }
