@@ -4,7 +4,7 @@ const c = @cImport({
 const std = @import("std");
 const zap = @import("zap");
 
-const index = @embedFile("index.mustache");
+const index = @embedFile("index.html");
 const favicon = @embedFile("favicon.ico");
 
 const Self = @This();
@@ -12,9 +12,6 @@ const Self = @This();
 allocator: std.mem.Allocator,
 template: zap.Mustache,
 sym: *c.CK_FUNCTION_LIST,
-info: c.CK_INFO,
-slot_list: []c.CK_ULONG,
-slot_infos: []c.CK_SLOT_INFO,
 session_handle: c.CK_SESSION_HANDLE,
 
 pub fn init(allocator: std.mem.Allocator, sym: *c.CK_FUNCTION_LIST) !Self {
@@ -59,28 +56,8 @@ pub fn deinit(self: *Self) void {
     self.template.deinit();
 }
 
-pub fn getIndex(self: *Self, req: zap.Request) void {
-    const Slot = struct {
-        slot_id: isize,
-        description: [64]u8,
-    };
-
-    const slots = self.allocator.alloc(Slot, self.slot_list.len) catch return;
-    defer self.allocator.free(slots);
-
-    for (self.slot_list, 0..) |slot_id, i| {
-        slots[i].slot_id = @intCast(slot_id);
-        slots[i].description = self.slot_infos[i].slotDescription;
-    }
-
-    const ret = self.template.build(.{
-        .manufacturer_id = self.info.manufacturerID,
-        .slots = slots,
-        .logged = self.session_handle != 0,
-    });
-    defer ret.deinit();
-
-    req.sendBody(ret.str().?) catch return;
+pub fn getIndex(_: *Self, req: zap.Request) void {
+    req.sendBody(index) catch return;
 }
 
 pub fn postLogin(self: *Self, req: zap.Request) void {

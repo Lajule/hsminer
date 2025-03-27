@@ -2,6 +2,7 @@ const c = @cImport({
     @cInclude("pkcs11zig.h");
 });
 const std = @import("std");
+const clap = @import("clap");
 const zap = @import("zap");
 const HSMiner = @import("hsminer.zig");
 
@@ -43,7 +44,26 @@ fn loadTls() !?zap.Tls {
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+
+    const params = comptime clap.parseParamsComptime(
+        \\-h, --help        Display this help and exit.
+        \\-c, --cert <str>  Path to certificat file.
+        \\-k, --key <str>   Path to key file.
+        \\-p, --pin <usize> Pin (0-255).
+        \\<str>
+        \\<usize>
+    );
+
+    var diag = clap.Diagnostic{};
+    var res = clap.parse(clap.Help, &params, clap.parsers.default, .{
+        .diagnostic = &diag,
+        .allocator = gpa.allocator(),
+    }) catch |err| {
+        diag.report(std.io.getStdErr().writer(), err) catch {};
+        return err;
+    };
+    defer res.deinit();
 
     const sym = try loadModule();
     var hsminer = try HSMiner.init(allocator, sym);
