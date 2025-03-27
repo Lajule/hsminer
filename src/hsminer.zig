@@ -9,19 +9,14 @@ const favicon = @embedFile("favicon.ico");
 
 const Self = @This();
 
-const Slot = struct {
-    id: u32,
-    description: [64]u8,
-    label: [32]u8,
-    model: [16]u8,
-    initialized: bool,
-};
-
 allocator: std.mem.Allocator,
-sym: *c.CK_FUNCTION_LIST,
-manufacturer_id: [32]u8,
-slots: []Slot,
 template: zap.Mustache,
+sym: *c.CK_FUNCTION_LIST,
+info: c.CK_INFO,
+slot_list: []c.CK_ULONG,
+slot_infos: []c.CK_SLOT_INFO,
+token_infos: []c.CK_TOKEN_INFO,
+session_handle: c.CK_SESSION_HANDLE,
 
 pub fn init(allocator: std.mem.Allocator, sym: *c.CK_FUNCTION_LIST) !Self {
     var args: c.CK_C_INITIALIZE_ARGS = .{ .flags = c.CKF_OS_LOCKING_OK };
@@ -34,54 +29,98 @@ pub fn init(allocator: std.mem.Allocator, sym: *c.CK_FUNCTION_LIST) !Self {
     _ = sym.C_GetSlotList.?(c.CK_TRUE, null, &slot_count);
 
     const slot_list = try allocator.alloc(c.CK_ULONG, slot_count);
-    defer allocator.free(slot_list);
+    errdefer allocator.free(slot_list);
     _ = sym.C_GetSlotList.?(c.CK_TRUE, slot_list.ptr, &slot_count);
 
-    const slots = try allocator.alloc(Slot, slot_count);
-    errdefer allocator.free(slots);
+    const slot_infos = try allocator.alloc(c.CK_SLOT_INFO, slot_count);
+    errdefer allocator.free(slot_infos);
+
+    const token_infos = try allocator.alloc(c.CK_TOKEN_INFO, slot_count);
+    errdefer allocator.free(token_infos);
 
     for (slot_list, 0..) |slot, i| {
-        var slot_info: c.CK_SLOT_INFO = undefined;
-        _ = sym.C_GetSlotInfo.?(slot, &slot_info);
-
-        var token_info: c.CK_TOKEN_INFO = undefined;
-        _ = sym.C_GetTokenInfo.?(slot, &token_info);
-
-        slots[i] = .{
-            .id = @intCast(slot),
-            .description = slot_info.slotDescription,
-            .label = token_info.label,
-            .model = token_info.model,
-            .initialized = (token_info.flags & c.CKF_TOKEN_INITIALIZED) == c.CKF_TOKEN_INITIALIZED,
-        };
+        _ = sym.C_GetSlotInfo.?(slot, &slot_infos[i]);
+        _ = sym.C_GetTokenInfo.?(slot, &token_infos[i]);
     }
 
     return .{
         .allocator = allocator,
-        .sym = sym,
-        .manufacturer_id = info.manufacturerID,
-        .slots = slots,
         .template = try zap.Mustache.fromData(index),
+        .sym = sym,
+        .info = info,
+        .slot_list = slot_list,
+        .slot_infos = slot_infos,
+        .token_infos = token_infos,
+        .session_handle = 0,
     };
 }
 
 pub fn deinit(self: *Self) void {
-    self.allocator.free(self.slots);
+    self.allocator.free(self.slot_list);
+    self.allocator.free(self.slot_infos);
+    self.allocator.free(self.token_infos);
+
     self.template.deinit();
 }
 
-pub fn onRequest(self: *Self, req: zap.Request) void {
-    if (req.body) |body| {
-        std.log.info("Body is {s}", .{body});
+pub fn getIndex(self: *Self, req: zap.Request) void {
+    const Slot = struct {
+        slot_id: u32,
+        description: [64]u8,
+    };
+
+    const slots = self.allocator.alloc(Slot, self.slot_list.len) catch return;
+    defer self.allocator.free(slots);
+
+    for (self.slot_list, 0..) |slot_id, i| {
+        slots[i].slot_id = @intCast(slot_id);
+        slots[i].description = self.slot_infos[i].slotDescription;
     }
 
     const ret = self.template.build(.{
-        .manufacturer_id = self.manufacturer_id,
-        .slots = self.slots,
+        .manufacturer_id = self.info.manufacturerID,
+        .slots = slots,
     });
     defer ret.deinit();
 
     req.sendBody(ret.str().?) catch return;
+}
+
+pub fn postLogin(self: *Self, req: zap.Request) void {
+    req.parseBody() catch return;
+
+    const params = req.parametersToOwnedList(self.allocator, false) catch return;
+    defer params.deinit();
+
+    var id: u32 = 0;
+    var pin: u32 = 0;
+
+    for (params.items) |kv| {
+        if (kv.value) |v| {
+            if (std.mem.eql(u8, "id", kv.key.str)) {
+                id = @intCast(v.Int);
+                continue;
+            }
+
+            if (std.mem.eql(u8, "pin", kv.key.str)) {
+                switch (v) {
+                    .Int => |p| pin = @intCast(p),
+                    else => {},
+                }
+                continue;
+            }
+        }
+    }
+
+    //var r = self.sym.C_OpenSession.?(id, c.CKF_RW_SESSION | c.CKF_SERIAL_SESSION, null, null, &self.handle);
+    //std.log.info("\"{}\"", .{r});
+
+    //var buf: [4]u8 = undefined;
+    //const str_pin = std.fmt.bufPrint(&buf, "{}", .{pin}) catch return;
+    //r = self.sym.C_Login.?(self.handle, c.CKU_USER, str_pin.ptr, 4);
+    //std.log.info("\"{}\"", .{r});
+
+    req.redirectTo("/", null) catch return;
 }
 
 pub fn getFavicon(_: *Self, req: zap.Request) void {

@@ -10,7 +10,8 @@ fn not_found(req: zap.Request) void {
     req.sendBody("Not found") catch return;
 }
 
-fn loadModule(path: []const u8) !*c.CK_FUNCTION_LIST {
+fn loadModule() !*c.CK_FUNCTION_LIST {
+    const path = std.mem.span(std.os.argv[1]);
     std.log.info("loading module from \"{s}\"", .{path});
     var dyn_lib = try std.DynLib.open(path);
 
@@ -23,11 +24,28 @@ fn loadModule(path: []const u8) !*c.CK_FUNCTION_LIST {
     return sym;
 }
 
+fn loadTls() !?zap.Tls {
+    var tls: ?zap.Tls = null;
+
+    if (std.os.argv.len > 2) {
+        const cert = std.mem.span(std.os.argv[2]);
+        const key = std.mem.span(std.os.argv[3]);
+        std.log.info("loading TLS from \"{s}\" and \"{s}\"", .{ cert, key });
+
+        tls = try zap.Tls.init(.{
+            .public_certificate_file = cert,
+            .private_key_file = key,
+        });
+    }
+
+    return tls;
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    const sym = try loadModule(std.mem.span(std.os.argv[1]));
+    const sym = try loadModule();
     var hsminer = try HSMiner.init(allocator, sym);
     defer hsminer.deinit();
 
@@ -36,16 +54,11 @@ pub fn main() !void {
     });
     defer router.deinit();
 
-    try router.handle_func("/", &hsminer, &HSMiner.onRequest);
+    try router.handle_func("/", &hsminer, &HSMiner.getIndex);
+    try router.handle_func("/login", &hsminer, &HSMiner.postLogin);
     try router.handle_func("/favicon.ico", &hsminer, &HSMiner.getFavicon);
 
-    var tls: ?zap.Tls = null;
-    if (std.os.argv.len > 2) {
-        tls = try zap.Tls.init(.{
-            .public_certificate_file = std.os.argv[2],
-            .private_key_file = std.os.argv[3],
-        });
-    }
+    const tls = try loadTls();
     defer {
         if (tls) |t| {
             t.deinit();

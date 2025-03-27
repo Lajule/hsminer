@@ -14,10 +14,19 @@
   {{#slots}}
     <li>
       <p>{{description}}</p>
-      <p>{{label}}</p>
-      {{#initialized}}<form action="/" method="POST"><input type="hidden" name="id" value="{{id}}"><input type="submit" value="Login"></form>{{/initialized}}
+      {{#initialized}}
+      <form action="/login" method="POST">
+        <input type="hidden" name="id" value="{{id}}" />
+        <input type="password" name="pin" required />
+        <label>PIN</label>
+        <input type="submit" />
+      </form>
+      {{/initialized}}
     </li>
   {{/slots}}
+  {{#handle}}
+  <p>{{handle}}</p>
+  {{/handle}}
   </ul>
 </body>
 </html>
