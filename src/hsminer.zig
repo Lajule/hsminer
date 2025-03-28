@@ -30,7 +30,7 @@ pub fn init(allocator: std.mem.Allocator, sym: *C.CK_FUNCTION_LIST, slot_id: usi
     return .{
         .allocator = allocator,
         .sym = sym,
-        .session_handle = 0,
+        .session_handle = session_handle,
     };
 }
 
@@ -69,19 +69,30 @@ pub fn postEncrypt(self: *Self, req: zap.Request) void {
         }
     }
 
-    //const id: []u8 = .{1};
-    //const template: C.CK_ATTRIBUTE = .{
-    //    .type = C.CKA_ID,
-    //    .pValue = id.ptr,
-    //    .ulValueLen = id.len,
-    //};
-    //std.log.debug("{}", .{template});
+    const label = "key 1";
 
-    //_ = self.sym.C_FindObjectsInit.?(self.session_handle, template, 1);
-    //_ = self.sym.C_FindObjects
-    //_ = self.sym.C_FindObjectsFinal
+    const templates = self.allocator.alloc(C.CK_ATTRIBUTE, 1) catch return;
+    defer self.allocator.free(templates);
 
-    //_ = self.sym.C_EncryptInit
+    templates[0].type = C.CKA_LABEL;
+    templates[0].pValue = @constCast(@ptrCast(label.ptr));
+    templates[0].ulValueLen = label.len;
+
+    const r = self.sym.C_FindObjectsInit.?(self.session_handle, templates.ptr, 1);
+    std.log.debug("{any} {}", .{ templates, r });
+
+    const objects = self.allocator.alloc(C.CK_OBJECT_HANDLE, 1) catch return;
+    defer self.allocator.free(objects);
+
+    std.log.debug("{any}", .{objects});
+
+    var n: c_ulong = 0;
+    _ = self.sym.C_FindObjects.?(self.session_handle, objects.ptr, 1, @constCast(&n));
+    std.log.debug("{any} {}", .{ objects, n });
+
+    _ = self.sym.C_FindObjectsFinal.?(self.session_handle);
+
+    _ = self.sym.C_EncryptInit.?(self.session_handle, 0, objects[0]);
     //_ = self.sym.C_Encrypt
     //_ = self.sym.C_EncryptFinal
 
