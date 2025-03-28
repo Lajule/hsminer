@@ -6,9 +6,9 @@ const clap = @import("clap");
 const zap = @import("zap");
 const HSMiner = @import("hsminer.zig");
 
-fn loadModule(path: []const u8) !*C.CK_FUNCTION_LIST {
-    std.log.info("loading module from \"{s}\"", .{path});
-    var dyn_lib = try std.DynLib.open(path);
+fn loadModule(module: []const u8) !*C.CK_FUNCTION_LIST {
+    std.log.info("loading module from \"{s}\"", .{module});
+    var dyn_lib = try std.DynLib.open(module);
 
     var getFunctionList: *const fn (**C.CK_FUNCTION_LIST) callconv(.c) C.CK_RV = undefined;
     getFunctionList = dyn_lib.lookup(@TypeOf(getFunctionList), "C_GetFunctionList") orelse return error.LookupFailed;
@@ -19,16 +19,21 @@ fn loadModule(path: []const u8) !*C.CK_FUNCTION_LIST {
     return sym;
 }
 
-fn loadTls(cert: ?[]const u8, key: ?[]const u8) !?zap.Tls {
+fn loadTls(allocator: std.mem.Allocator, cert: ?[]const u8, key: ?[]const u8) !?zap.Tls {
     var tls: ?zap.Tls = null;
 
     if (cert) |c| {
         if (key) |k| {
             std.log.info("loading TLS from \"{s}\" and \"{s}\"", .{ c, k });
 
+            const public_certificate_file = try allocator.dupeZ(u8, c);
+            defer allocator.free(public_certificate_file);
+            const private_key_file = try allocator.dupeZ(u8, k);
+            defer allocator.free(private_key_file);
+
             tls = try zap.Tls.init(.{
-                .public_certificate_file = c.ptr,
-                .private_key_file = k.ptr,
+                .public_certificate_file = public_certificate_file,
+                .private_key_file = private_key_file,
             });
         }
     }
@@ -51,9 +56,9 @@ pub fn main() !void {
         \\-h, --help        Display this help and exit.
         \\-c, --cert <str>  Path to certificat file.
         \\-k, --key <str>   Path to key file.
-        \\<str>
-        \\<usize>
-        \\<str>
+        \\<str>             Path to PKCS11 module.
+        \\<usize>           Slot identifier.
+        \\<str>             Pin (4-255).
         \\
     );
 
@@ -62,18 +67,26 @@ pub fn main() !void {
     });
     defer res.deinit();
 
-    if (res.args.help != 0) return;
+    if (res.args.help != 0) {
+        return clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
+    }
+
+    const module = res.positionals[0] orelse return error.MissingModule;
+    const slot_id = res.positionals[1] orelse return error.MissingSlotID;
+    const pin = res.positionals[2] orelse return error.MissingPin;
+
+    var hsminer = try HSMiner.init(allocator, try loadModule(module), slot_id, pin);
 
     var router = zap.Router.init(allocator, .{
         .not_found = not_found,
     });
     defer router.deinit();
 
-    var hsminer = HSMiner.init(try loadModule(res.positionals[0].?), res.positionals[1].?, res.positionals[2].?);
     try router.handle_func("/", &hsminer, &HSMiner.getIndex);
     try router.handle_func("/favicon.ico", &hsminer, &HSMiner.getFavicon);
+    try router.handle_func("/encrypt", &hsminer, &HSMiner.postEncrypt);
 
-    const tls = try loadTls(res.args.cert, res.args.key);
+    const tls = try loadTls(allocator, res.args.cert, res.args.key);
     defer {
         if (tls) |t| {
             t.deinit();

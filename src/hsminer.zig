@@ -9,20 +9,26 @@ const favicon = @embedFile("favicon.ico");
 
 const Self = @This();
 
+allocator: std.mem.Allocator,
 sym: *C.CK_FUNCTION_LIST,
 session_handle: C.CK_SESSION_HANDLE,
 
-pub fn init(sym: *C.CK_FUNCTION_LIST, slot_id: usize, pin: []const u8) Self {
+pub fn init(allocator: std.mem.Allocator, sym: *C.CK_FUNCTION_LIST, slot_id: usize, pin: []const u8) !Self {
     var args: C.CK_C_INITIALIZE_ARGS = .{ .flags = C.CKF_OS_LOCKING_OK };
     _ = sym.C_Initialize.?(&args);
 
     var session_handle: C.CK_SESSION_HANDLE = 0;
     _ = sym.C_OpenSession.?(@intCast(slot_id), C.CKF_RW_SESSION | C.CKF_SERIAL_SESSION, null, null, &session_handle);
-    std.log.debug("session_handle: {}", .{session_handle});
+    if (session_handle == 0) return error.SessionFailed;
 
-    _ = sym.C_Login.?(session_handle, C.CKU_USER, std.mem.span(pin), pin.len);
+    const p = try allocator.dupeZ(u8, pin);
+    defer allocator.free(p);
+
+    const r = sym.C_Login.?(session_handle, C.CKU_USER, p, p.len);
+    if (r != 0) return error.LoginFailed;
 
     return .{
+        .allocator = allocator,
         .sym = sym,
         .session_handle = 0,
     };
@@ -41,4 +47,43 @@ pub fn getIndex(_: *Self, req: zap.Request) void {
 pub fn getFavicon(_: *Self, req: zap.Request) void {
     req.setContentTypeFromPath() catch return;
     req.sendBody(favicon) catch return;
+}
+
+pub fn postEncrypt(self: *Self, req: zap.Request) void {
+    req.parseBody() catch return;
+
+    const params = req.parametersToOwnedList(self.allocator, false) catch return;
+    defer params.deinit();
+
+    for (params.items) |kv| {
+        if (kv.value) |v| {
+            std.log.debug("{}", .{v});
+
+            if (std.mem.eql(u8, "id", kv.key.str)) {
+                continue;
+            }
+
+            if (std.mem.eql(u8, "text", kv.key.str)) {
+                continue;
+            }
+        }
+    }
+
+    //const id: []u8 = .{1};
+    //const template: C.CK_ATTRIBUTE = .{
+    //    .type = C.CKA_ID,
+    //    .pValue = id.ptr,
+    //    .ulValueLen = id.len,
+    //};
+    //std.log.debug("{}", .{template});
+
+    //_ = self.sym.C_FindObjectsInit.?(self.session_handle, template, 1);
+    //_ = self.sym.C_FindObjects
+    //_ = self.sym.C_FindObjectsFinal
+
+    //_ = self.sym.C_EncryptInit
+    //_ = self.sym.C_Encrypt
+    //_ = self.sym.C_EncryptFinal
+
+    req.redirectTo("/", null) catch return;
 }

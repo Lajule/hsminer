@@ -9,5 +9,9 @@ softhsm2-util --init-token --slot 0 --label "My token 1" --pin 1234
 ```
 
 ```
-zig build run -- /usr/lib/softhsm/libsofthsm2.so ./mycert.pem ./mykey.pem
+pkcs11-tool --module /usr/lib/softhsm/libsofthsm2.so --slot 1502799447 --login --login-type user --keygen --key-type aes:32 --id 1
+```
+
+```
+zig build run -- -c cert.pem -k key.pem /usr/lib/softhsm/libsofthsm2.so 1502799447 1234
 ```
