@@ -52,47 +52,27 @@ pub fn getFavicon(_: *Self, req: zap.Request) void {
 pub fn postEncrypt(self: *Self, req: zap.Request) void {
     req.parseBody() catch return;
 
-    const params = req.parametersToOwnedList(self.allocator, false) catch return;
-    defer params.deinit();
-
-    for (params.items) |kv| {
-        if (kv.value) |v| {
-            std.log.debug("{}", .{v});
-
-            if (std.mem.eql(u8, "id", kv.key.str)) {
-                continue;
-            }
-
-            if (std.mem.eql(u8, "text", kv.key.str)) {
-                continue;
-            }
-        }
-    }
-
-    const label = "key 1";
+    const label = req.getParamStr(self.allocator, "label", false) catch return;
+    std.log.debug("{s}", .{label.?.str});
 
     const templates = self.allocator.alloc(C.CK_ATTRIBUTE, 1) catch return;
     defer self.allocator.free(templates);
 
     templates[0].type = C.CKA_LABEL;
-    templates[0].pValue = @constCast(@ptrCast(label.ptr));
-    templates[0].ulValueLen = label.len;
-
-    const r = self.sym.C_FindObjectsInit.?(self.session_handle, templates.ptr, 1);
-    std.log.debug("{any} {}", .{ templates, r });
+    templates[0].pValue = @constCast(label.?.str.ptr);
+    templates[0].ulValueLen = label.?.str.len;
+    _ = self.sym.C_FindObjectsInit.?(self.session_handle, templates.ptr, 1);
 
     const objects = self.allocator.alloc(C.CK_OBJECT_HANDLE, 1) catch return;
     defer self.allocator.free(objects);
 
-    std.log.debug("{any}", .{objects});
-
     var n: c_ulong = 0;
-    _ = self.sym.C_FindObjects.?(self.session_handle, objects.ptr, 1, @constCast(&n));
-    std.log.debug("{any} {}", .{ objects, n });
+    _ = self.sym.C_FindObjects.?(self.session_handle, objects.ptr, 1, &n);
+    std.log.debug("{any} {any}", .{ objects, n });
 
     _ = self.sym.C_FindObjectsFinal.?(self.session_handle);
 
-    _ = self.sym.C_EncryptInit.?(self.session_handle, 0, objects[0]);
+    //_ = self.sym.C_EncryptInit.?(self.session_handle, 0, objects[0]);
     //_ = self.sym.C_Encrypt
     //_ = self.sym.C_EncryptFinal
 
