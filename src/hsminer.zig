@@ -53,28 +53,28 @@ pub fn postEncrypt(self: *Self, req: zap.Request) void {
     req.parseBody() catch return;
 
     const label = req.getParamStr(self.allocator, "label", false) catch return;
-    std.log.debug("{s}", .{label.?.str});
+    if (label) |l| {
+        var templates: [1]C.CK_ATTRIBUTE = .{
+            .{
+                .type = C.CKA_LABEL,
+                .pValue = @constCast(l.str.ptr),
+                .ulValueLen = l.str.len,
+            },
+        };
+        _ = self.sym.C_FindObjectsInit.?(self.session_handle, &templates, 1);
 
-    const templates = self.allocator.alloc(C.CK_ATTRIBUTE, 1) catch return;
-    defer self.allocator.free(templates);
+        var objects: [1]C.CK_OBJECT_HANDLE = .{0};
+        var n: c_ulong = 0;
+        _ = self.sym.C_FindObjects.?(self.session_handle, &objects, 1, &n);
 
-    templates[0].type = C.CKA_LABEL;
-    templates[0].pValue = @constCast(label.?.str.ptr);
-    templates[0].ulValueLen = label.?.str.len;
-    _ = self.sym.C_FindObjectsInit.?(self.session_handle, templates.ptr, 1);
+        _ = self.sym.C_FindObjectsFinal.?(self.session_handle);
 
-    const objects = self.allocator.alloc(C.CK_OBJECT_HANDLE, 1) catch return;
-    defer self.allocator.free(objects);
-
-    var n: c_ulong = 0;
-    _ = self.sym.C_FindObjects.?(self.session_handle, objects.ptr, 1, &n);
-    std.log.debug("{any} {any}", .{ objects, n });
-
-    _ = self.sym.C_FindObjectsFinal.?(self.session_handle);
-
-    //_ = self.sym.C_EncryptInit.?(self.session_handle, 0, objects[0]);
-    //_ = self.sym.C_Encrypt
-    //_ = self.sym.C_EncryptFinal
+        if (n == 1) {
+            //_ = self.sym.C_EncryptInit.?(self.session_handle, 0, objects[0]);
+            //_ = self.sym.C_Encrypt
+            //_ = self.sym.C_EncryptFinal
+        }
+    }
 
     req.redirectTo("/", null) catch return;
 }
