@@ -4,6 +4,7 @@ const C = @cImport({
 const std = @import("std");
 const clap = @import("clap");
 const zap = @import("zap");
+
 const HSMiner = @import("hsminer.zig");
 
 fn loadModule(module: []const u8) !*C.CK_FUNCTION_LIST {

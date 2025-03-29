@@ -54,11 +54,14 @@ pub fn postEncrypt(self: *Self, req: zap.Request) void {
 
     const label = req.getParamStr(self.allocator, "label", false) catch return;
     if (label) |l| {
+        const value = self.allocator.dupeZ(u8, l.str) catch return;
+        defer self.allocator.free(value);
+
         var templates: [1]C.CK_ATTRIBUTE = .{
             .{
                 .type = C.CKA_LABEL,
-                .pValue = @constCast(l.str.ptr),
-                .ulValueLen = l.str.len,
+                .pValue = @ptrCast(value),
+                .ulValueLen = value.len,
             },
         };
         _ = self.sym.C_FindObjectsInit.?(self.session_handle, &templates, 1);
@@ -70,6 +73,8 @@ pub fn postEncrypt(self: *Self, req: zap.Request) void {
         _ = self.sym.C_FindObjectsFinal.?(self.session_handle);
 
         if (n == 1) {
+            std.log.info("found key with label {s}", .{value});
+
             //_ = self.sym.C_EncryptInit.?(self.session_handle, 0, objects[0]);
             //_ = self.sym.C_Encrypt
             //_ = self.sym.C_EncryptFinal
