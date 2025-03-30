@@ -61,7 +61,7 @@ pub fn postEncrypt(self: *Self, req: zap.Request) void {
             .{
                 .type = C.CKA_LABEL,
                 .pValue = @ptrCast(value),
-                .ulValueLen = value.len,
+                .ulValueLen = value.len * @sizeOf(u8),
             },
         };
         _ = self.sym.C_FindObjectsInit.?(self.session_handle, &templates, 1);
@@ -75,9 +75,16 @@ pub fn postEncrypt(self: *Self, req: zap.Request) void {
         if (n == 1) {
             std.log.info("found key with label {s}", .{value});
 
-            //_ = self.sym.C_EncryptInit.?(self.session_handle, 0, objects[0]);
+            var iv: [8]u8 = .{ 0, 0, 0, 0, 0, 0, 0, 0 };
+            var mechanism: C.CK_MECHANISM = .{
+                .mechanism = C.CKM_DES_CBC_PAD,
+                .pParameter = @ptrCast(&iv),
+                .ulParameterLen = 8 * @sizeOf(u8),
+            };
+            _ = self.sym.C_EncryptInit.?(self.session_handle, &mechanism, objects[0]);
+
             //_ = self.sym.C_Encrypt
-            //_ = self.sym.C_EncryptFinal
+            //_ = self.sym.C_EncryptFinal.?(self.session_handle);
         }
     }
 
