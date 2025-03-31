@@ -75,16 +75,34 @@ pub fn postEncrypt(self: *Self, req: zap.Request) void {
         if (n == 1) {
             std.log.info("found key with label {s}", .{value});
 
-            var iv: [8]u8 = .{ 0, 0, 0, 0, 0, 0, 0, 0 };
-            var mechanism: C.CK_MECHANISM = .{
-                .mechanism = C.CKM_DES_CBC_PAD,
-                .pParameter = @ptrCast(&iv),
-                .ulParameterLen = 8 * @sizeOf(u8),
-            };
-            _ = self.sym.C_EncryptInit.?(self.session_handle, &mechanism, objects[0]);
+            const text = req.getParamStr(self.allocator, "text", false) catch return;
+            if (text) |t| {
+                const data = self.allocator.dupeZ(u8, t.str) catch return;
+                defer self.allocator.free(data);
 
-            //_ = self.sym.C_Encrypt
-            //_ = self.sym.C_EncryptFinal.?(self.session_handle);
+                var iv = self.allocator.alloc(u8, 16) catch return;
+                defer self.allocator.free(iv);
+
+                var mechanism: C.CK_MECHANISM = .{
+                    .mechanism = C.CKM_AES_CBC_PAD,
+                    .pParameter = &iv[0],
+                    .ulParameterLen = 16 * @sizeOf(u8),
+                };
+                var r = self.sym.C_EncryptInit.?(self.session_handle, &mechanism, objects[0]);
+                std.log.debug("{any}", .{r});
+
+                var encrypted_data = self.allocator.alloc(u8, 2048) catch return;
+                defer self.allocator.free(encrypted_data);
+
+                var encrypted_data_len: c_ulong = 2028 * @sizeOf(u8);
+                r = self.sym.C_Encrypt.?(self.session_handle, data, data.len, &encrypted_data[0], &encrypted_data_len);
+                std.log.debug("{any}", .{r});
+
+                std.log.debug("{any}", .{encrypted_data_len});
+
+                _ = self.sym.C_EncryptFinal.?(self.session_handle, &encrypted_data[0], encrypted_data_len);
+                std.log.debug("\"{s}\" {any} {any}", .{ encrypted_data, encrypted_data_len, r });
+            }
         }
     }
 
