@@ -61,7 +61,7 @@ pub fn postEncrypt(self: *Self, req: zap.Request) void {
             .{
                 .type = C.CKA_LABEL,
                 .pValue = @ptrCast(value),
-                .ulValueLen = value.len * @sizeOf(u8),
+                .ulValueLen = value.len,
             },
         };
         _ = self.sym.C_FindObjectsInit.?(self.session_handle, &templates, 1);

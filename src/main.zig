@@ -29,6 +29,7 @@ fn loadTls(allocator: std.mem.Allocator, cert: ?[]const u8, key: ?[]const u8) !?
 
             const public_certificate_file = try allocator.dupeZ(u8, c);
             defer allocator.free(public_certificate_file);
+
             const private_key_file = try allocator.dupeZ(u8, k);
             defer allocator.free(private_key_file);
 
@@ -54,12 +55,13 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     const params = comptime clap.parseParamsComptime(
-        \\-h, --help        Display this help and exit.
-        \\-c, --cert <str>  Path to certificat file.
-        \\-k, --key <str>   Path to key file.
-        \\<str>             Path to PKCS11 module.
-        \\<usize>           Slot identifier.
-        \\<str>             Pin (4-255).
+        \\-h, --help         Display this help and exit.
+        \\-c, --cert <str>   Path to certificat file.
+        \\-k, --key <str>    Path to key file.
+        \\-p, --port <usize> Port.
+        \\<str>              Path to PKCS11 module.
+        \\<usize>            Slot identifier.
+        \\<str>              Pin (4-255).
         \\
     );
 
@@ -72,9 +74,9 @@ pub fn main() !void {
         return clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
     }
 
-    const module = res.positionals[0] orelse return error.MissingModule;
-    const slot_id = res.positionals[1] orelse return error.MissingSlotID;
-    const pin = res.positionals[2] orelse return error.MissingPin;
+    const module = res.positionals[0] orelse return clap.usage(std.io.getStdErr().writer(), clap.Help, &params);
+    const slot_id = res.positionals[1] orelse return clap.usage(std.io.getStdErr().writer(), clap.Help, &params);
+    const pin = res.positionals[2] orelse return clap.usage(std.io.getStdErr().writer(), clap.Help, &params);
 
     var hsminer = try HSMiner.init(allocator, try loadModule(module), slot_id, pin);
 
@@ -95,15 +97,14 @@ pub fn main() !void {
     }
 
     var listener = zap.HttpListener.init(.{
-        .port = 3000,
+        .port = res.args.port orelse 3000,
         .on_request = router.on_request_handler(),
         .log = false,
-        .max_clients = 100000,
         .tls = tls,
     });
     try listener.listen();
 
-    std.log.info("Listening on 0.0.0.0:3000", .{});
+    std.log.info("listening on 0.0.0.0:3000", .{});
 
     zap.start(.{
         .threads = 2,
