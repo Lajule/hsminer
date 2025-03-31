@@ -46,11 +46,11 @@ pub fn deinit(self: *Self) void {
 pub fn getIndex(self: *Self, req: zap.Request) void {
     const ret = self.template.build(.{});
     defer ret.deinit();
+
     req.setContentType(.HTML) catch return;
+
     if (ret.str()) |s| {
         req.sendBody(s) catch return;
-    } else {
-        req.sendBody("<html><body><h1>mustacheBuild() failed!</h1></body></html>") catch return;
     }
 }
 
@@ -105,18 +105,16 @@ pub fn postEncrypt(self: *Self, req: zap.Request) void {
                 };
                 _ = self.sym.C_EncryptInit.?(self.session_handle, &mechanism, objects[0]);
 
-                var encrypted_data = self.allocator.alloc(u8, 256) catch return;
-                defer self.allocator.free(encrypted_data);
+                var result = self.allocator.alloc(u8, 256) catch return;
+                defer self.allocator.free(result);
 
-                var encrypted_data_len: c_ulong = 256;
-                _ = self.sym.C_Encrypt.?(self.session_handle, data, data.len, &encrypted_data[0], &encrypted_data_len);
+                var result_len: c_ulong = 256;
+                _ = self.sym.C_Encrypt.?(self.session_handle, data, data.len, &result[0], &result_len);
 
-                _ = self.sym.C_EncryptFinal.?(self.session_handle, &encrypted_data[0], encrypted_data_len);
-                encrypted_data[encrypted_data_len] = 0;
-                std.log.debug("\"{s}\"", .{encrypted_data[0..encrypted_data_len :0]});
+                _ = self.sym.C_EncryptFinal.?(self.session_handle, &result[0], result_len);
+                result[result_len] = 0;
+                std.log.debug("\"{x}\"", .{result[0..result_len :0]});
             }
         }
     }
-
-    req.redirectTo("/", null) catch return;
 }
