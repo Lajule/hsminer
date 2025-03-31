@@ -60,15 +60,15 @@ pub fn postEncrypt(self: *Self, req: zap.Request) void {
         var templates: [1]C.CK_ATTRIBUTE = .{
             .{
                 .type = C.CKA_LABEL,
-                .pValue = @ptrCast(value),
+                .pValue = &value[0],
                 .ulValueLen = value.len,
             },
         };
-        _ = self.sym.C_FindObjectsInit.?(self.session_handle, &templates, 1);
+        _ = self.sym.C_FindObjectsInit.?(self.session_handle, &templates[0], 1);
 
         var objects: [1]C.CK_OBJECT_HANDLE = .{0};
         var n: c_ulong = 0;
-        _ = self.sym.C_FindObjects.?(self.session_handle, &objects, 1, &n);
+        _ = self.sym.C_FindObjects.?(self.session_handle, &objects[0], 1, &n);
 
         _ = self.sym.C_FindObjectsFinal.?(self.session_handle);
 
@@ -86,22 +86,19 @@ pub fn postEncrypt(self: *Self, req: zap.Request) void {
                 var mechanism: C.CK_MECHANISM = .{
                     .mechanism = C.CKM_AES_CBC_PAD,
                     .pParameter = &iv[0],
-                    .ulParameterLen = 16 * @sizeOf(u8),
+                    .ulParameterLen = 16,
                 };
-                var r = self.sym.C_EncryptInit.?(self.session_handle, &mechanism, objects[0]);
-                std.log.debug("{any}", .{r});
+                _ = self.sym.C_EncryptInit.?(self.session_handle, &mechanism, objects[0]);
 
-                var encrypted_data = self.allocator.alloc(u8, 2048) catch return;
+                var encrypted_data = self.allocator.alloc(u8, 256) catch return;
                 defer self.allocator.free(encrypted_data);
 
-                var encrypted_data_len: c_ulong = 2028 * @sizeOf(u8);
-                r = self.sym.C_Encrypt.?(self.session_handle, data, data.len, &encrypted_data[0], &encrypted_data_len);
-                std.log.debug("{any}", .{r});
-
-                std.log.debug("{any}", .{encrypted_data_len});
+                var encrypted_data_len: c_ulong = 256;
+                _ = self.sym.C_Encrypt.?(self.session_handle, data, data.len, &encrypted_data[0], &encrypted_data_len);
 
                 _ = self.sym.C_EncryptFinal.?(self.session_handle, &encrypted_data[0], encrypted_data_len);
-                std.log.debug("\"{s}\" {any} {any}", .{ encrypted_data, encrypted_data_len, r });
+                encrypted_data[encrypted_data_len] = 0;
+                std.log.debug("\"{s}\"", .{encrypted_data[0..encrypted_data_len :0]});
             }
         }
     }
