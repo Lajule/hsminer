@@ -86,6 +86,7 @@ pub fn main() !void {
     defer router.deinit();
 
     try router.handle_func("/", &hsminer, &HSMiner.getIndex);
+    try router.handle_func("/style.css", &hsminer, &HSMiner.getStyle);
     try router.handle_func("/favicon.ico", &hsminer, &HSMiner.getFavicon);
     try router.handle_func("/encrypt", &hsminer, &HSMiner.postEncrypt);
 

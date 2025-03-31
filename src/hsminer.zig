@@ -4,7 +4,8 @@ const C = @cImport({
 const std = @import("std");
 const zap = @import("zap");
 
-const index = @embedFile("index.html");
+const index = @embedFile("index.mustache");
+const style = @embedFile("style.css");
 const favicon = @embedFile("favicon.ico");
 
 const Self = @This();
@@ -12,6 +13,7 @@ const Self = @This();
 allocator: std.mem.Allocator,
 sym: *C.CK_FUNCTION_LIST,
 session_handle: C.CK_SESSION_HANDLE,
+template: zap.Mustache,
 
 pub fn init(allocator: std.mem.Allocator, sym: *C.CK_FUNCTION_LIST, slot_id: usize, pin: []const u8) !Self {
     var args: C.CK_C_INITIALIZE_ARGS = .{ .flags = C.CKF_OS_LOCKING_OK };
@@ -31,6 +33,7 @@ pub fn init(allocator: std.mem.Allocator, sym: *C.CK_FUNCTION_LIST, slot_id: usi
         .allocator = allocator,
         .sym = sym,
         .session_handle = session_handle,
+        .template = try zap.Mustache.fromData(index),
     };
 }
 
@@ -40,8 +43,20 @@ pub fn deinit(self: *Self) void {
     self.session_handle = 0;
 }
 
-pub fn getIndex(_: *Self, req: zap.Request) void {
-    req.sendBody(index) catch return;
+pub fn getIndex(self: *Self, req: zap.Request) void {
+    const ret = self.template.build(.{});
+    defer ret.deinit();
+    req.setContentType(.HTML) catch return;
+    if (ret.str()) |s| {
+        req.sendBody(s) catch return;
+    } else {
+        req.sendBody("<html><body><h1>mustacheBuild() failed!</h1></body></html>") catch return;
+    }
+}
+
+pub fn getStyle(_: *Self, req: zap.Request) void {
+    req.setContentTypeFromPath() catch return;
+    req.sendBody(style) catch return;
 }
 
 pub fn getFavicon(_: *Self, req: zap.Request) void {
