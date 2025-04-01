@@ -62,74 +62,96 @@ pub fn getFavicon(_: *Self, req: zap.Request) void {
 pub fn postEncrypt(self: *Self, req: zap.Request) void {
     req.parseBody() catch return;
 
-    const method = req.getParamStr(self.allocator, "method", false) catch return;
+    const methodParam = req.getParamStr(self.allocator, "method", false) catch return;
+    const method = if (methodParam) |m| std.mem.eql(u8, m.str, "encrypt") else false;
 
     const label = req.getParamStr(self.allocator, "label", false) catch return;
     if (label) |l| {
-        const value = self.allocator.dupeZ(u8, l.str) catch return;
-        defer self.allocator.free(value);
+        const object = self.find(l.str);
 
-        var templates: [1]C.CK_ATTRIBUTE = .{
-            .{
-                .type = C.CKA_LABEL,
-                .pValue = &value[0],
-                .ulValueLen = value.len,
-            },
-        };
-        _ = self.sym.C_FindObjectsInit.?(self.session_handle, &templates[0], 1);
-
-        var objects: [1]C.CK_OBJECT_HANDLE = .{0};
-        var n: c_ulong = 0;
-        _ = self.sym.C_FindObjects.?(self.session_handle, &objects[0], 1, &n);
-
-        _ = self.sym.C_FindObjectsFinal.?(self.session_handle);
-
-        if (n == 1) {
+        if (object != 0) {
             const text = req.getParamStr(self.allocator, "text", false) catch return;
             if (text) |t| {
-                const data = self.allocator.dupeZ(u8, t.str) catch return;
-                defer self.allocator.free(data);
-
-                var iv = self.allocator.alloc(u8, 16) catch return;
+                const iv = self.allocator.alloc(u8, 16) catch return;
                 defer self.allocator.free(iv);
 
                 var mechanism: C.CK_MECHANISM = .{
                     .mechanism = C.CKM_AES_CBC_PAD,
                     .pParameter = &iv[0],
-                    .ulParameterLen = 16,
+                    .ulParameterLen = iv.len,
                 };
-                _ = self.sym.C_EncryptInit.?(self.session_handle, &mechanism, objects[0]);
 
-                var buf: [256]u8 = undefined;
-                var buf_len: c_ulong = 256;
-                _ = self.sym.C_Encrypt.?(self.session_handle, data, data.len, &buf[0], &buf_len);
+                if (method) {
+                    _ = self.sym.C_EncryptInit.?(self.session_handle, &mechanism, object);
 
-                _ = self.sym.C_EncryptFinal.?(self.session_handle, &buf[0], buf_len);
+                    const data = self.allocator.dupeZ(u8, t.str) catch return;
+                    defer self.allocator.free(data);
 
-                var result: [256]u8 = undefined;
-                const str = std.fmt.bufPrint(&result, "{s}", .{std.fmt.fmtSliceHexLower(buf[0..buf_len])}) catch return;
+                    var buf: [256]u8 = undefined;
+                    var buf_len: c_ulong = 256;
+                    _ = self.sym.C_Encrypt.?(self.session_handle, data, data.len, &buf[0], &buf_len);
 
-                self.render(req, .{
-                    .method = if (method) |m| std.mem.eql(u8, m.str, "encrypt") else false,
-                    .label = l.str,
-                    .text = t.str,
-                    .result = str,
-                });
+                    var result: [256]u8 = undefined;
+                    const str = std.fmt.bufPrint(&result, "{s}", .{std.fmt.fmtSliceHexLower(buf[0..buf_len])}) catch return;
+
+                    self.render(req, .{
+                        .method = method,
+                        .label = l.str,
+                        .text = t.str,
+                        .result = str,
+                    });
+                } else {
+                    _ = self.sym.C_DecryptInit.?(self.session_handle, &mechanism, object);
+
+                    var data: [1024]u8 = undefined;
+                    const str = std.fmt.hexToBytes(&data, t.str) catch return;
+
+                    var buf: [1024]u8 = undefined;
+                    var buf_len: c_ulong = 1024;
+                    _ = self.sym.C_Decrypt.?(self.session_handle, &str[0], str.len, &buf[0], &buf_len);
+
+                    self.render(req, .{
+                        .method = method,
+                        .label = l.str,
+                        .text = t.str,
+                        .result = buf[0..buf_len],
+                    });
+                }
             }
         } else {
             self.render(req, .{
-                .method = if (method) |m| std.mem.eql(u8, m.str, "encrypt") else false,
+                .method = method,
                 .label = l.str,
             });
         }
     } else {
         self.render(req, .{
-            .method = if (method) |m| std.mem.eql(u8, m.str, "encrypt") else false,
+            .method = method,
         });
     }
 }
 
-pub fn render(self: *Self, req: zap.Request, state: anytype) void {
+fn find(self: *Self, label: []const u8) C.CK_OBJECT_HANDLE {
+    const value = self.allocator.dupeZ(u8, label) catch return 0;
+    defer self.allocator.free(value);
+
+    var template: C.CK_ATTRIBUTE = .{
+        .type = C.CKA_LABEL,
+        .pValue = &value[0],
+        .ulValueLen = value.len,
+    };
+    _ = self.sym.C_FindObjectsInit.?(self.session_handle, &template, 1);
+
+    var object: C.CK_OBJECT_HANDLE = 0;
+    var n: c_ulong = 0;
+    _ = self.sym.C_FindObjects.?(self.session_handle, &object, 1, &n);
+
+    _ = self.sym.C_FindObjectsFinal.?(self.session_handle);
+
+    return object;
+}
+
+fn render(self: *Self, req: zap.Request, state: anytype) void {
     const ret = self.template.build(state);
     defer ret.deinit();
 
