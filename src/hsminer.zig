@@ -105,15 +105,15 @@ pub fn postEncrypt(self: *Self, req: zap.Request) void {
                 };
                 _ = self.sym.C_EncryptInit.?(self.session_handle, &mechanism, objects[0]);
 
-                var result = self.allocator.alloc(u8, 256) catch return;
-                defer self.allocator.free(result);
+                var buf: [256]u8 = undefined;
+                var buf_len: c_ulong = 256;
+                _ = self.sym.C_Encrypt.?(self.session_handle, data, data.len, &buf[0], &buf_len);
 
-                var result_len: c_ulong = 256;
-                _ = self.sym.C_Encrypt.?(self.session_handle, data, data.len, &result[0], &result_len);
+                _ = self.sym.C_EncryptFinal.?(self.session_handle, &buf[0], buf_len);
 
-                _ = self.sym.C_EncryptFinal.?(self.session_handle, &result[0], result_len);
-                result[result_len] = 0;
-                std.log.debug("\"{x}\"", .{result[0..result_len :0]});
+                var result: [256]u8 = undefined;
+                const str = std.fmt.bufPrint(&result, "{s}", .{std.fmt.fmtSliceHexLower(buf[0..buf_len])}) catch return;
+                std.log.debug("\"{s}\"", .{str});
             }
         }
     }
