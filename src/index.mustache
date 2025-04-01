@@ -12,6 +12,10 @@
 <body>
   <h1>HSMiner</h1>
   <form action="/encrypt" method="POST">
+    <input type="radio" id="encrypt" name="method" value="encrypt" {{#method}}checked{{/method}} />
+    <label for="encrypt">Encrypt</label>
+    <input type="radio" id="decrypt" name="method" value="decrypt" {{^method}}checked{{/method}} />
+    <label for="decrypt">Decrypt</label>
     <input type="text" name="label" value="{{label}}" required />
     <textarea name="text">{{text}}</textarea>
     <input type="submit" />

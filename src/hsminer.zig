@@ -44,14 +44,9 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn getIndex(self: *Self, req: zap.Request) void {
-    const ret = self.template.build(.{});
-    defer ret.deinit();
-
-    req.setContentType(.HTML) catch return;
-
-    if (ret.str()) |s| {
-        req.sendBody(s) catch return;
-    }
+    self.render(req, .{
+        .method = true,
+    });
 }
 
 pub fn getStyle(_: *Self, req: zap.Request) void {
@@ -66,6 +61,8 @@ pub fn getFavicon(_: *Self, req: zap.Request) void {
 
 pub fn postEncrypt(self: *Self, req: zap.Request) void {
     req.parseBody() catch return;
+
+    const method = req.getParamStr(self.allocator, "method", false) catch return;
 
     const label = req.getParamStr(self.allocator, "label", false) catch return;
     if (label) |l| {
@@ -88,8 +85,6 @@ pub fn postEncrypt(self: *Self, req: zap.Request) void {
         _ = self.sym.C_FindObjectsFinal.?(self.session_handle);
 
         if (n == 1) {
-            std.log.info("found key with label {s}", .{value});
-
             const text = req.getParamStr(self.allocator, "text", false) catch return;
             if (text) |t| {
                 const data = self.allocator.dupeZ(u8, t.str) catch return;
@@ -113,8 +108,34 @@ pub fn postEncrypt(self: *Self, req: zap.Request) void {
 
                 var result: [256]u8 = undefined;
                 const str = std.fmt.bufPrint(&result, "{s}", .{std.fmt.fmtSliceHexLower(buf[0..buf_len])}) catch return;
-                std.log.debug("\"{s}\"", .{str});
+
+                self.render(req, .{
+                    .method = if (method) |m| std.mem.eql(u8, m.str, "encrypt") else false,
+                    .label = l.str,
+                    .text = t.str,
+                    .result = str,
+                });
             }
+        } else {
+            self.render(req, .{
+                .method = if (method) |m| std.mem.eql(u8, m.str, "encrypt") else false,
+                .label = l.str,
+            });
         }
+    } else {
+        self.render(req, .{
+            .method = if (method) |m| std.mem.eql(u8, m.str, "encrypt") else false,
+        });
+    }
+}
+
+pub fn render(self: *Self, req: zap.Request, state: anytype) void {
+    const ret = self.template.build(state);
+    defer ret.deinit();
+
+    req.setContentType(.HTML) catch return;
+
+    if (ret.str()) |s| {
+        req.sendBody(s) catch return;
     }
 }
