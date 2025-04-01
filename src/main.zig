@@ -15,7 +15,8 @@ fn loadModule(module: []const u8) !*C.CK_FUNCTION_LIST {
     getFunctionList = dyn_lib.lookup(@TypeOf(getFunctionList), "C_GetFunctionList") orelse return error.LookupFailed;
 
     var sym: *C.CK_FUNCTION_LIST = undefined;
-    _ = getFunctionList(@ptrCast(&sym));
+    const r = getFunctionList(@ptrCast(&sym));
+    if (r != C.CKR_OK) return error.GetFunctionListFailed;
 
     return sym;
 }
@@ -78,7 +79,9 @@ pub fn main() !void {
     const slot_id = res.positionals[1] orelse return clap.usage(std.io.getStdErr().writer(), clap.Help, &params);
     const pin = res.positionals[2] orelse return clap.usage(std.io.getStdErr().writer(), clap.Help, &params);
 
-    var hsminer = try HSMiner.init(allocator, try loadModule(module), slot_id, pin);
+    const sym = try loadModule(module);
+    var hsminer = try HSMiner.init(allocator, sym, slot_id, pin);
+    defer hsminer.deinit();
 
     var router = zap.Router.init(allocator, .{
         .not_found = not_found,
@@ -88,7 +91,7 @@ pub fn main() !void {
     try router.handle_func("/", &hsminer, &HSMiner.getIndex);
     try router.handle_func("/style.css", &hsminer, &HSMiner.getStyle);
     try router.handle_func("/favicon.ico", &hsminer, &HSMiner.getFavicon);
-    try router.handle_func("/encrypt", &hsminer, &HSMiner.postEncrypt);
+    try router.handle_func("/action", &hsminer, &HSMiner.postAction);
 
     const tls = try loadTls(allocator, res.args.cert, res.args.key);
     defer {
@@ -100,7 +103,7 @@ pub fn main() !void {
     var listener = zap.HttpListener.init(.{
         .port = res.args.port orelse 3000,
         .on_request = router.on_request_handler(),
-        .log = false,
+        .log = true,
         .tls = tls,
     });
     try listener.listen();
