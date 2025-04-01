@@ -91,8 +91,8 @@ pub fn postEncrypt(self: *Self, req: zap.Request) void {
                     var buf_len: c_ulong = 256;
                     _ = self.sym.C_Encrypt.?(self.session_handle, data, data.len, &buf[0], &buf_len);
 
-                    var result: [256]u8 = undefined;
-                    const str = std.fmt.bufPrint(&result, "{s}", .{std.fmt.fmtSliceHexLower(buf[0..buf_len])}) catch return;
+                    var encoded: [256]u8 = undefined;
+                    const str = std.fmt.bufPrint(&encoded, "{s}", .{std.fmt.fmtSliceHexLower(buf[0..buf_len])}) catch return;
 
                     self.render(req, .{
                         .method = method,
