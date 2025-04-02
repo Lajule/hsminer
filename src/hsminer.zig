@@ -69,14 +69,15 @@ pub fn getFavicon(_: *Self, req: zap.Request) void {
 pub fn postAction(self: *Self, req: zap.Request) void {
     req.parseBody() catch return;
 
-    const functionParam = req.getParamStr(self.allocator, "function", false) catch return;
-    const labelParam = req.getParamStr(self.allocator, "label", false) catch return;
-    const textParam = req.getParamStr(self.allocator, "text", false) catch return;
+    const function = self.param(req, "function") catch return;
+    const encrypt = std.mem.eql(u8, function, "encrypt");
+    const decrypt = std.mem.eql(u8, function, "decrypt");
 
-    const encrypt = std.mem.eql(u8, functionParam.?.str, "encrypt");
-    const decrypt = std.mem.eql(u8, functionParam.?.str, "decrypt");
+    const label = self.param(req, "label") catch return;
 
-    const object = self.find(labelParam.?.str) catch return;
+    const text = self.param(req, "text") catch return;
+
+    const object = self.find(label) catch return;
     if (object != 0) {
         const iv = self.allocator.alloc(u8, 16) catch return;
         defer self.allocator.free(iv);
@@ -91,7 +92,7 @@ pub fn postAction(self: *Self, req: zap.Request) void {
             var r = self.sym.C_EncryptInit.?(self.session_handle, &mechanism, object);
             if (r != C.CKR_OK) std.log.debug("EncryptInit failed: {}", .{r});
 
-            const data = self.allocator.dupeZ(u8, textParam.?.str) catch return;
+            const data = self.allocator.dupeZ(u8, text) catch return;
             defer self.allocator.free(data);
 
             var buf: [256]u8 = undefined;
@@ -105,8 +106,8 @@ pub fn postAction(self: *Self, req: zap.Request) void {
 
             self.render(req, .{
                 .encrypt = encrypt,
-                .label = labelParam.?.str,
-                .text = textParam.?.str,
+                .label = label,
+                .text = text,
                 .result = encoded_str,
             }) catch return;
         }
@@ -116,7 +117,7 @@ pub fn postAction(self: *Self, req: zap.Request) void {
             if (r != C.CKR_OK) std.log.debug("DecryptInit failed: {}", .{r});
 
             var data: [1024]u8 = undefined;
-            const data_str = std.fmt.hexToBytes(&data, textParam.?.str) catch return;
+            const data_str = std.fmt.hexToBytes(&data, text) catch return;
 
             var buf: [1024]u8 = undefined;
             var buf_len: c_ulong = 1024;
@@ -125,8 +126,8 @@ pub fn postAction(self: *Self, req: zap.Request) void {
 
             self.render(req, .{
                 .decrypt = decrypt,
-                .label = labelParam.?.str,
-                .text = textParam.?.str,
+                .label = label,
+                .text = text,
                 .result = buf[0..buf_len],
             }) catch return;
         }
@@ -134,9 +135,24 @@ pub fn postAction(self: *Self, req: zap.Request) void {
         self.render(req, .{
             .encrypt = encrypt,
             .decrypt = decrypt,
-            .label = labelParam.?.str,
+            .label = label,
+            .text = text,
         }) catch return;
     }
+}
+
+fn param(self: *Self, req: zap.Request, name: []const u8) ![]const u8 {
+    const p = req.getParamStr(self.allocator, name, false) catch |err| {
+        try req.redirectTo("/", null);
+        return err;
+    };
+
+    if (p) |v| {
+        return v.str;
+    }
+
+    try req.redirectTo("/", null);
+    return error.UnknownParam;
 }
 
 fn find(self: *Self, label: []const u8) !C.CK_OBJECT_HANDLE {
@@ -166,9 +182,14 @@ fn render(self: *Self, req: zap.Request, state: anytype) !void {
     const ret = self.template.build(state);
     defer ret.deinit();
 
-    try req.setContentType(.HTML);
-
-    if (ret.str()) |s| {
-        try req.sendBody(s);
+    if (req.setContentType(.HTML)) {
+        if (ret.str()) |s| {
+            try req.sendBody(s);
+        } else {
+            try req.redirectTo("/", null);
+        }
+    } else |err| {
+        try req.redirectTo("/", null);
+        return err;
     }
 }
