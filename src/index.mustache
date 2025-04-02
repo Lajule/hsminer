@@ -10,16 +10,19 @@
   <meta name="theme-color" content="#fafafa">
 </head>
 <body>
-  <h1>HSMiner</h1>
-  <form action="/action" method="POST">
-    <input type="radio" id="encrypt" name="function" value="encrypt" {{#encrypt}}checked{{/encrypt}} />
-    <label for="encrypt">Encrypt</label>
-    <input type="radio" id="decrypt" name="function" value="decrypt" {{#decrypt}}checked{{/decrypt}} />
-    <label for="decrypt">Decrypt</label>
-    <input type="text" name="label" value="{{label}}" required />
-    <textarea name="text">{{text}}</textarea>
-    <input type="submit" />
-  </form>
-  <textarea name="text">{{result}}</textarea>
+  <div class="container">
+    <form action="/action" method="POST">
+      <div class="bar">
+        <input type="radio" id="encrypt" name="function" value="encrypt" {{#encrypt}}checked{{/encrypt}} />
+        <label for="encrypt">Encrypt</label>
+        <input type="radio" id="decrypt" name="function" value="decrypt" {{#decrypt}}checked{{/decrypt}} />
+        <label for="decrypt">Decrypt</label>
+        <input type="text" name="label" value="{{label}}" required />
+        <input type="submit" />
+      </div>
+      <textarea name="text">{{text}}</textarea>
+    </form>
+    <textarea class="result" readonly>{{result}}</textarea>
+  </div>
 </body>
 </html>

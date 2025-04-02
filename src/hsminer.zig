@@ -78,7 +78,7 @@ pub fn postAction(self: *Self, req: zap.Request) void {
     const text = self.param(req, "text") catch return;
 
     const object = self.find(label) catch return;
-    if (object != 0) {
+    if (object) |o| {
         const iv = self.allocator.alloc(u8, 16) catch return;
         defer self.allocator.free(iv);
 
@@ -89,7 +89,7 @@ pub fn postAction(self: *Self, req: zap.Request) void {
         };
 
         if (encrypt) {
-            var r = self.sym.C_EncryptInit.?(self.session_handle, &mechanism, object);
+            var r = self.sym.C_EncryptInit.?(self.session_handle, &mechanism, o);
             if (r != C.CKR_OK) std.log.debug("EncryptInit failed: {}", .{r});
 
             const data = self.allocator.dupeZ(u8, text) catch return;
@@ -113,7 +113,7 @@ pub fn postAction(self: *Self, req: zap.Request) void {
         }
 
         if (decrypt) {
-            var r = self.sym.C_DecryptInit.?(self.session_handle, &mechanism, object);
+            var r = self.sym.C_DecryptInit.?(self.session_handle, &mechanism, o);
             if (r != C.CKR_OK) std.log.debug("DecryptInit failed: {}", .{r});
 
             var data: [1024]u8 = undefined;
@@ -142,20 +142,18 @@ pub fn postAction(self: *Self, req: zap.Request) void {
 }
 
 fn param(self: *Self, req: zap.Request, name: []const u8) ![]const u8 {
-    const p = req.getParamStr(self.allocator, name, false) catch |err| {
+    const paramStr = req.getParamStr(self.allocator, name, false) catch |err| {
         try req.redirectTo("/", null);
         return err;
     };
 
-    if (p) |v| {
-        return v.str;
-    }
+    if (paramStr) |value| return value.str;
 
     try req.redirectTo("/", null);
     return error.UnknownParam;
 }
 
-fn find(self: *Self, label: []const u8) !C.CK_OBJECT_HANDLE {
+fn find(self: *Self, label: []const u8) !?C.CK_OBJECT_HANDLE {
     const value = try self.allocator.dupeZ(u8, label);
     defer self.allocator.free(value);
 
@@ -175,7 +173,7 @@ fn find(self: *Self, label: []const u8) !C.CK_OBJECT_HANDLE {
     r = self.sym.C_FindObjectsFinal.?(self.session_handle);
     if (r != C.CKR_OK) return error.FindObjectsFinalFailed;
 
-    return object;
+    return if (n == 1) object else null;
 }
 
 fn render(self: *Self, req: zap.Request, state: anytype) !void {
