@@ -7,6 +7,8 @@ const zap = @import("zap");
 
 const HSMiner = @import("hsminer.zig");
 
+const favicon = @embedFile("favicon.ico");
+
 fn loadModule(module: []const u8) !*C.CK_FUNCTION_LIST {
     std.log.info("loading module from \"{s}\"", .{module});
     var dyn_lib = try std.DynLib.open(module);
@@ -44,9 +46,14 @@ fn loadTls(allocator: std.mem.Allocator, cert: ?[]const u8, key: ?[]const u8) !?
     return tls;
 }
 
-fn not_found(req: zap.Request) void {
+fn notFound(req: zap.Request) void {
     std.log.info("not found handler", .{});
     req.sendBody("Not found") catch return;
+}
+
+fn getFavicon(req: zap.Request) void {
+    req.setContentTypeFromPath() catch return;
+    req.sendBody(favicon) catch return;
 }
 
 pub fn main() !void {
@@ -84,14 +91,13 @@ pub fn main() !void {
     defer hsminer.deinit();
 
     var router = zap.Router.init(allocator, .{
-        .not_found = not_found,
+        .not_found = notFound,
     });
     defer router.deinit();
 
     try router.handle_func("/", &hsminer, &HSMiner.getIndex);
-    try router.handle_func("/style.css", &hsminer, &HSMiner.getStyle);
-    try router.handle_func("/favicon.ico", &hsminer, &HSMiner.getFavicon);
     try router.handle_func("/action", &hsminer, &HSMiner.postAction);
+    try router.handle_func_unbound("/favicon.ico", getFavicon);
 
     const tls = try loadTls(allocator, res.args.cert, res.args.key);
     defer {

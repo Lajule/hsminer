@@ -4,25 +4,33 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HSMiner</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/purecss@3.0.0/build/pure-min.css" integrity="sha384-X38yfunGUhNzHpBaEBsWLO+A0HDYOQi8ufWDkZ0k9e0eXz/tH3II7uKZ9msv++Ls" crossorigin="anonymous">
   <meta name="description" content="">
   <link rel="icon" href="/favicon.ico" sizes="any">
-  <meta name="theme-color" content="#fafafa">
 </head>
 <body>
-  <div class="container">
-    <form action="/action" method="POST">
-      <div class="bar">
-        <input type="radio" id="encrypt" name="function" value="encrypt" {{#encrypt}}checked{{/encrypt}} />
-        <label for="encrypt">Encrypt</label>
-        <input type="radio" id="decrypt" name="function" value="decrypt" {{#decrypt}}checked{{/decrypt}} />
-        <label for="decrypt">Decrypt</label>
-        <input type="text" name="label" value="{{label}}" required />
-        <input type="submit" />
-      </div>
-      <textarea name="text">{{text}}</textarea>
+<div class="pure-g">
+  <div class="pure-u-1-2">
+      <form class="pure-form pure-form-stacked" action="/action" method="POST">
+      <fieldset>
+        <label for="encrypt" class="pure-radio">
+            <input id="encrypt" type="radio" name="function" {{#encrypt}}checked=""{{/encrypt}} value="encrypt" /> Encrypt
+        </label>
+        <label for="decrypt" class="pure-radio">
+            <input id="decrypt" type="radio" name="function" {{#decrypt}}checked=""{{/decrypt}} value="decrypt" /> Decrypt
+        </label>
+        <label for="label">Label</label>
+        <input id="label" type="text" name="label" placeholder="Label" value="{{label}}" required />
+        <span class="pure-form-message">This is a required field.</span>
+        <label for="text">Text</label>
+        <textarea id="text" name="text">{{text}}</textarea>
+        <button type="submit" class="pure-button pure-button-primary">Let's go !</button>
+      </fieldset>
     </form>
-    <textarea class="result" readonly>{{result}}</textarea>
   </div>
+  <div class="pure-u-1-2">
+    <textarea readonly="">{{result}}</textarea>
+  </div>
+</div>
 </body>
 </html>
