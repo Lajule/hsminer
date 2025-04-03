@@ -165,15 +165,15 @@ fn find(self: *Self, label: []const u8) !?C.CK_OBJECT_HANDLE {
     var r = self.sym.C_FindObjectsInit.?(self.session_handle, &template, 1);
     if (r != C.CKR_OK) return error.FindObjectsInitFailed;
 
-    var object: C.CK_OBJECT_HANDLE = 0;
+    var o: C.CK_OBJECT_HANDLE = 0;
     var n: c_ulong = 0;
-    r = self.sym.C_FindObjects.?(self.session_handle, &object, 1, &n);
+    r = self.sym.C_FindObjects.?(self.session_handle, &o, 1, &n);
     if (r != C.CKR_OK) return error.FindObjectsFailed;
 
     r = self.sym.C_FindObjectsFinal.?(self.session_handle);
     if (r != C.CKR_OK) return error.FindObjectsFinalFailed;
 
-    return if (n == 1) object else null;
+    return if (n == 1) o else null;
 }
 
 fn render(self: *Self, req: zap.Request, state: anytype) !void {
