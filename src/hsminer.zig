@@ -57,15 +57,15 @@ pub fn getIndex(self: *Self, req: zap.Request) void {
 pub fn postAction(self: *Self, req: zap.Request) void {
     req.parseBody() catch return;
 
-    const function = self.param(req, "function") catch return;
+    const function = self.formParam(req, "function") catch return;
     const encrypt = std.mem.eql(u8, function, "encrypt");
     const decrypt = std.mem.eql(u8, function, "decrypt");
 
-    const label = self.param(req, "label") catch return;
+    const label = self.formParam(req, "label") catch return;
 
-    const text = self.param(req, "text") catch return;
+    const text = self.formParam(req, "text") catch return;
 
-    const object = self.find(label) catch return;
+    const object = self.findKey(label) catch return;
     if (object) |o| {
         const iv = self.allocator.alloc(u8, 16) catch return;
         defer self.allocator.free(iv);
@@ -129,7 +129,7 @@ pub fn postAction(self: *Self, req: zap.Request) void {
     }
 }
 
-fn param(self: *Self, req: zap.Request, name: []const u8) ![]const u8 {
+fn formParam(self: *Self, req: zap.Request, name: []const u8) ![]const u8 {
     const paramStr = req.getParamStr(self.allocator, name, false) catch |err| {
         try req.redirectTo("/", null);
         return err;
@@ -141,7 +141,7 @@ fn param(self: *Self, req: zap.Request, name: []const u8) ![]const u8 {
     return error.UnknownParam;
 }
 
-fn find(self: *Self, label: []const u8) !?C.CK_OBJECT_HANDLE {
+fn findKey(self: *Self, label: []const u8) !?C.CK_OBJECT_HANDLE {
     const value = try self.allocator.dupeZ(u8, label);
     defer self.allocator.free(value);
 
