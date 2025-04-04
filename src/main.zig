@@ -7,6 +7,7 @@ const zap = @import("zap");
 
 const HSMiner = @import("hsminer.zig");
 
+// Embed ico file
 const favicon = @embedFile("favicon.ico");
 
 fn loadModule(module: []const u8) !*C.CK_FUNCTION_LIST {
