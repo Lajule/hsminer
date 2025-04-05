@@ -7,18 +7,18 @@ const zap = @import("zap");
 
 const HSMiner = @import("hsminer.zig");
 
-// Embed ico file
+// ICO file is embedded.
 const favicon = @embedFile("favicon.ico");
 
 fn loadModule(module: []const u8) !*C.CK_FUNCTION_LIST {
     std.log.info("loading module from \"{s}\"", .{module});
     var dyn_lib = try std.DynLib.open(module);
 
-    var getFunctionList: *const fn (**C.CK_FUNCTION_LIST) callconv(.c) C.CK_RV = undefined;
-    getFunctionList = dyn_lib.lookup(@TypeOf(getFunctionList), "C_GetFunctionList") orelse return error.LookupFailed;
+    var get_function_list: *const fn (**C.CK_FUNCTION_LIST) callconv(.c) C.CK_RV = undefined;
+    get_function_list = dyn_lib.lookup(@TypeOf(get_function_list), "C_GetFunctionList") orelse return error.LookupFailed;
 
     var sym: *C.CK_FUNCTION_LIST = undefined;
-    const r = getFunctionList(@ptrCast(&sym));
+    const r = get_function_list(@ptrCast(&sym));
     if (r != C.CKR_OK) return error.GetFunctionListFailed;
 
     return sym;

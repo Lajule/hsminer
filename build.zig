@@ -29,6 +29,7 @@ pub fn build(b: *std.Build) void {
     const zap = b.dependency("zap", .{ .target = target, .optimize = optimize, .openssl = true });
     const clap = b.dependency("clap", .{});
 
+    // HSMiner dependencies.
     exe_mod.addImport("zap", zap.module("zap"));
     exe_mod.addImport("clap", clap.module("clap"));
 
@@ -40,6 +41,7 @@ pub fn build(b: *std.Build) void {
     });
 
     exe.addIncludePath(b.path("src"));
+    // We load PKCS11 module dynamiclly.
     exe.linkSystemLibrary("dl");
 
     // This declares intent for the executable to be installed into the

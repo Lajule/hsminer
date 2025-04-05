@@ -83,13 +83,13 @@ pub fn postAction(self: *Self, req: zap.Request) void {
             const data = self.allocator.dupeZ(u8, text) catch return;
             defer self.allocator.free(data);
 
-            var buf: [256]u8 = undefined;
-            var buf_len: c_ulong = 256;
+            var buf: [512]u8 = undefined;
+            var buf_len: c_ulong = 512;
             r = self.sym.C_Encrypt.?(self.session_handle, data, data.len, &buf[0], &buf_len);
             if (r != C.CKR_OK) std.log.debug("Encrypt failed: {}", .{r});
 
             const formatter = std.fmt.fmtSliceHexLower(buf[0..buf_len]);
-            var encoded_buf: [256]u8 = undefined;
+            var encoded_buf: [1024]u8 = undefined;
             const encoded_str = std.fmt.bufPrint(&encoded_buf, "{s}", .{formatter}) catch return;
 
             self.render(req, .{
@@ -104,11 +104,11 @@ pub fn postAction(self: *Self, req: zap.Request) void {
             var r = self.sym.C_DecryptInit.?(self.session_handle, &mechanism, o);
             if (r != C.CKR_OK) std.log.debug("DecryptInit failed: {}", .{r});
 
-            var data: [1024]u8 = undefined;
+            var data: [512]u8 = undefined;
             const data_str = std.fmt.hexToBytes(&data, text) catch return;
 
-            var buf: [1024]u8 = undefined;
-            var buf_len: c_ulong = 1024;
+            var buf: [256]u8 = undefined;
+            var buf_len: c_ulong = 256;
             r = self.sym.C_Decrypt.?(self.session_handle, &data_str[0], data_str.len, &buf[0], &buf_len);
             if (r != C.CKR_OK) std.log.debug("Decrypt failed: {}", .{r});
 
@@ -130,12 +130,12 @@ pub fn postAction(self: *Self, req: zap.Request) void {
 }
 
 fn formParam(self: *Self, req: zap.Request, name: []const u8) ![]const u8 {
-    const paramStr = req.getParamStr(self.allocator, name, false) catch |err| {
+    const param_str = req.getParamStr(self.allocator, name, false) catch |err| {
         try req.redirectTo("/", null);
         return err;
     };
 
-    if (paramStr) |value| return value.str;
+    if (param_str) |value| return value.str;
 
     try req.redirectTo("/", null);
     return error.UnknownParam;
