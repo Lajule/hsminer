@@ -83,14 +83,18 @@ pub fn postAction(self: *Self, req: zap.Request) void {
             const data = self.allocator.dupeZ(u8, text) catch return;
             defer self.allocator.free(data);
 
-            var buf: [512]u8 = undefined;
-            var buf_len: c_ulong = 512;
+            var buf_len: c_ulong = data.len * 2;
+            var buf = self.allocator.alloc(u8, buf_len) catch return;
+            defer self.allocator.free(buf);
+
             r = self.sym.C_Encrypt.?(self.session_handle, data, data.len, &buf[0], &buf_len);
             if (r != C.CKR_OK) std.log.debug("Encrypt failed: {}", .{r});
 
+            const encoded_buf = self.allocator.alloc(u8, buf_len * 2) catch return;
+            defer self.allocator.free(encoded_buf);
+
             const formatter = std.fmt.fmtSliceHexLower(buf[0..buf_len]);
-            var encoded_buf: [1024]u8 = undefined;
-            const encoded_str = std.fmt.bufPrint(&encoded_buf, "{s}", .{formatter}) catch return;
+            const encoded_str = std.fmt.bufPrint(encoded_buf, "{s}", .{formatter}) catch return;
 
             self.render(req, .{
                 .encrypt = encrypt,
@@ -104,11 +108,15 @@ pub fn postAction(self: *Self, req: zap.Request) void {
             var r = self.sym.C_DecryptInit.?(self.session_handle, &mechanism, o);
             if (r != C.CKR_OK) std.log.debug("DecryptInit failed: {}", .{r});
 
-            var data: [512]u8 = undefined;
-            const data_str = std.fmt.hexToBytes(&data, text) catch return;
+            const data = self.allocator.alloc(u8, text.len) catch return;
+            defer self.allocator.free(data);
 
-            var buf: [256]u8 = undefined;
-            var buf_len: c_ulong = 256;
+            const data_str = std.fmt.hexToBytes(data, text) catch return;
+
+            var buf_len: c_ulong = data_str.len;
+            var buf = self.allocator.alloc(u8, buf_len) catch return;
+            defer self.allocator.free(buf);
+
             r = self.sym.C_Decrypt.?(self.session_handle, &data_str[0], data_str.len, &buf[0], &buf_len);
             if (r != C.CKR_OK) std.log.debug("Decrypt failed: {}", .{r});
 

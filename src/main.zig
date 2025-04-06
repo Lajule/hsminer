@@ -49,17 +49,6 @@ fn notFound(req: zap.Request) void {
     req.sendBody("Not found") catch return;
 }
 
-fn initRouer(allocator: std.men.Allocator, hsminer: HSMiner) !zap.Router {
-    var router = zap.Router.init(allocator, .{
-        .not_found = notFound,
-    });
-
-    try router.handle_func("/", &hsminer, &HSMiner.getIndex);
-    try router.handle_func("/action", &hsminer, &HSMiner.postAction);
-
-    return router;
-}
-
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -94,8 +83,13 @@ pub fn main() !void {
     var hsminer = try HSMiner.init(allocator, sym, slot_id, pin);
     defer hsminer.deinit();
 
-    var router = initRouer(allocator, hsminer);
+    var router = zap.Router.init(allocator, .{
+        .not_found = notFound,
+    });
     defer router.deinit();
+
+    try router.handle_func("/", &hsminer, &HSMiner.getIndex);
+    try router.handle_func("/action", &hsminer, &HSMiner.postAction);
 
     const tls = try loadTls(allocator, res.args.cert, res.args.key);
     defer {
