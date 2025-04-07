@@ -16,17 +16,26 @@ template: zap.Mustache,
 pub fn init(allocator: std.mem.Allocator, sym: *C.CK_FUNCTION_LIST, slot_id: usize, pin: []const u8) !Self {
     var args: C.CK_C_INITIALIZE_ARGS = .{ .flags = C.CKF_OS_LOCKING_OK };
     var r = sym.C_Initialize.?(&args);
-    if (r != C.CKR_OK) return error.InitializeFailed;
+    if (r != C.CKR_OK) {
+        std.log.debug("C_Initialize failed: {}", .{r});
+        return error.InitializeFailed;
+    }
 
     var session_handle: C.CK_SESSION_HANDLE = 0;
     r = sym.C_OpenSession.?(@intCast(slot_id), C.CKF_RW_SESSION | C.CKF_SERIAL_SESSION, null, null, &session_handle);
-    if (r != C.CKR_OK) return error.OpenSessionFailed;
+    if (r != C.CKR_OK) {
+        std.log.debug("C_OpenSession failed: {}", .{r});
+        return error.OpenSessionFailed;
+    }
 
     const p = try allocator.dupeZ(u8, pin);
     defer allocator.free(p);
 
     r = sym.C_Login.?(session_handle, C.CKU_USER, p, p.len);
-    if (r != C.CKR_OK) return error.LoginFailed;
+    if (r != C.CKR_OK) {
+        std.log.debug("C_Login failed: {}", .{r});
+        return error.LoginFailed;
+    }
 
     const template = try zap.Mustache.fromData(index);
 
@@ -105,7 +114,10 @@ pub fn postAction(self: *Self, req: zap.Request) void {
 
 fn encryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object: C.CK_OBJECT_HANDLE) ![]const u8 {
     var r = self.sym.C_EncryptInit.?(self.session_handle, mechanism, object);
-    if (r != C.CKR_OK) return error.EncryptInitFailed;
+    if (r != C.CKR_OK) {
+        std.log.debug("C_EncryptInit failed: {}", .{r});
+        return error.EncryptInitFailed;
+    }
 
     const data = try self.allocator.dupeZ(u8, text);
     defer self.allocator.free(data);
@@ -115,7 +127,10 @@ fn encryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object
     defer self.allocator.free(buf);
 
     r = self.sym.C_Encrypt.?(self.session_handle, data, data.len, &buf[0], &buf_len);
-    if (r != C.CKR_OK) return error.EncryptFailed;
+    if (r != C.CKR_OK) {
+        std.log.debug("C_Encrypt failed: {}", .{r});
+        return error.EncryptFailed;
+    }
 
     const encoded_buf = try self.allocator.alloc(u8, buf_len * 2);
 
@@ -125,7 +140,10 @@ fn encryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object
 
 fn decryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object: C.CK_OBJECT_HANDLE) ![]const u8 {
     var r = self.sym.C_DecryptInit.?(self.session_handle, mechanism, object);
-    if (r != C.CKR_OK) return error.DecryptInitFailed;
+    if (r != C.CKR_OK) {
+        std.log.debug("C_DecryptInit failed: {}", .{r});
+        return error.DecryptInitFailed;
+    }
 
     const data = try self.allocator.alloc(u8, text.len);
     defer self.allocator.free(data);
@@ -137,20 +155,17 @@ fn decryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object
 
     var buf_len: c_ulong = data_str.len;
     r = self.sym.C_Decrypt.?(self.session_handle, &data_str[0], data_str.len, &buf[0], &buf_len);
-    if (r != C.CKR_OK) return error.DecryptFailed;
+    if (r != C.CKR_OK) {
+        std.log.debug("C_Decrypt failed: {}", .{r});
+        return error.DecryptFailed;
+    }
 
     return try self.allocator.dupe(u8, buf[0..buf_len]);
 }
 
 fn formParam(self: *Self, req: zap.Request, name: []const u8) ![]const u8 {
-    const param_str = req.getParamStr(self.allocator, name, false) catch |err| {
-        try req.redirectTo("/", null);
-        return err;
-    };
-
-    if (param_str) |value| return value.str;
-
-    try req.redirectTo("/", null);
+    const param = req.getParamStr(self.allocator, name, false) catch |err| return err;
+    if (param) |p| return p.str;
     return error.UnknownParam;
 }
 
@@ -164,15 +179,24 @@ fn findKey(self: *Self, label: []const u8) !?C.CK_OBJECT_HANDLE {
         .ulValueLen = value.len,
     };
     var r = self.sym.C_FindObjectsInit.?(self.session_handle, &template, 1);
-    if (r != C.CKR_OK) return error.FindObjectsInitFailed;
+    if (r != C.CKR_OK) {
+        std.log.debug("C_FindObjectsInit failed: {}", .{r});
+        return error.FindObjectsInitFailed;
+    }
 
     var o: C.CK_OBJECT_HANDLE = 0;
     var n: c_ulong = 0;
     r = self.sym.C_FindObjects.?(self.session_handle, &o, 1, &n);
-    if (r != C.CKR_OK) return error.FindObjectsFailed;
+    if (r != C.CKR_OK) {
+        std.log.debug("C_FindObjects failed: {}", .{r});
+        return error.FindObjectsFailed;
+    }
 
     r = self.sym.C_FindObjectsFinal.?(self.session_handle);
-    if (r != C.CKR_OK) return error.FindObjectsFinalFailed;
+    if (r != C.CKR_OK) {
+        std.log.debug("C_FindObjectsFinal failed: {}", .{r});
+        return error.FindObjectsFinalFailed;
+    }
 
     return if (n == 1) o else null;
 }
@@ -184,11 +208,8 @@ fn renderTemplate(self: *Self, req: zap.Request, state: anytype) !void {
     if (req.setContentType(.HTML)) {
         if (ret.str()) |s| {
             try req.sendBody(s);
-        } else {
-            try req.redirectTo("/", null);
         }
     } else |err| {
-        try req.redirectTo("/", null);
         return err;
     }
 }
