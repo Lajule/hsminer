@@ -7,6 +7,7 @@ const zap = @import("zap");
 
 const HSMiner = @import("hsminer.zig");
 
+// Loads a PKCS#11 module from a dynamic library and retrieves its function list.
 fn loadModule(module: []const u8) !*C.CK_FUNCTION_LIST {
     std.log.info("loading module from \"{s}\"", .{module});
     var dyn_lib = try std.DynLib.open(module);
@@ -21,6 +22,7 @@ fn loadModule(module: []const u8) !*C.CK_FUNCTION_LIST {
     return sym;
 }
 
+// Loads TLS configuration using the provided certificate and key paths.
 fn loadTls(allocator: std.mem.Allocator, cert: ?[]const u8, key: ?[]const u8) !?zap.Tls {
     var tls: ?zap.Tls = null;
 
