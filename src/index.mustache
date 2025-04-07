@@ -17,15 +17,15 @@
           <input id="encrypt" type="radio" name="function" {{#encrypt}}checked=""{{/encrypt}} value="encrypt" /> Encrypt
         </label>
         <label for="decrypt" class="pure-radio">
-          <input id="decrypt" type="radio" name="function" {{#decrypt}}checked=""{{/decrypt}} value="decrypt" /> Decrypt
+          <input id="decrypt" type="radio" name="function" {{^encrypt}}checked=""{{/encrypt}} value="decrypt" /> Decrypt
         </label>
         <label for="label">Label</label>
         <input id="label" class="pure-input-1" type="text" name="label" placeholder="Label" value="{{label}}" required />
         <span class="pure-form-message">This is a required field.</span>
         <label for="text">Text</label>
-        <textarea id="text" class="pure-input-1" name="text">{{text}}</textarea>
+        <textarea id="text" style="height: 20vh;" class="pure-input-1" name="text">{{text}}</textarea>
         <button type="submit" class="pure-button pure-button-primary">Let's go !</button>
-        <textarea class="pure-input-1" readonly="">{{result}}</textarea>
+        <textarea style="height: 20vh;" class="pure-input-1" readonly="">{{result}}</textarea>
       </fieldset>
     </form>
   </div>

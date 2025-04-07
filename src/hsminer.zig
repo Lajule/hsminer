@@ -49,7 +49,7 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn getIndex(self: *Self, req: zap.Request) void {
-    self.render(req, .{
+    self.renderTemplate(req, .{
         .encrypt = true,
     }) catch return;
 }
@@ -58,83 +58,88 @@ pub fn postAction(self: *Self, req: zap.Request) void {
     req.parseBody() catch return;
 
     const function = self.formParam(req, "function") catch return;
-    const encrypt = std.mem.eql(u8, function, "encrypt");
-    const decrypt = std.mem.eql(u8, function, "decrypt");
-
     const label = self.formParam(req, "label") catch return;
-
     const text = self.formParam(req, "text") catch return;
 
-    const object = self.findKey(label) catch return;
-    if (object) |o| {
-        const iv = self.allocator.alloc(u8, 16) catch return;
-        defer self.allocator.free(iv);
+    const encrypt = std.mem.eql(u8, function, "encrypt");
 
-        var mechanism: C.CK_MECHANISM = .{
-            .mechanism = C.CKM_AES_CBC_PAD,
-            .pParameter = &iv[0],
-            .ulParameterLen = iv.len,
-        };
+    if (label.len > 0 and text.len > 0) {
+        const object = self.findKey(label) catch return;
+        if (object) |o| {
+            const iv = self.allocator.alloc(u8, 16) catch return;
+            defer self.allocator.free(iv);
 
-        if (encrypt) {
-            var r = self.sym.C_EncryptInit.?(self.session_handle, &mechanism, o);
-            if (r != C.CKR_OK) std.log.debug("EncryptInit failed: {}", .{r});
+            var mechanism: C.CK_MECHANISM = .{
+                .mechanism = C.CKM_AES_CBC_PAD,
+                .pParameter = &iv[0],
+                .ulParameterLen = iv.len,
+            };
 
-            const data = self.allocator.dupeZ(u8, text) catch return;
-            defer self.allocator.free(data);
+            var result: []const u8 = undefined;
 
-            var buf_len: c_ulong = data.len * 2;
-            var buf = self.allocator.alloc(u8, buf_len) catch return;
-            defer self.allocator.free(buf);
+            if (encrypt) {
+                result = self.encryptText(text, &mechanism, o) catch return;
+            } else {
+                result = self.decryptText(text, &mechanism, o) catch return;
+            }
 
-            r = self.sym.C_Encrypt.?(self.session_handle, data, data.len, &buf[0], &buf_len);
-            if (r != C.CKR_OK) std.log.debug("Encrypt failed: {}", .{r});
+            defer self.allocator.free(result);
 
-            const encoded_buf = self.allocator.alloc(u8, buf_len * 2) catch return;
-            defer self.allocator.free(encoded_buf);
-
-            const formatter = std.fmt.fmtSliceHexLower(buf[0..buf_len]);
-            const encoded_str = std.fmt.bufPrint(encoded_buf, "{s}", .{formatter}) catch return;
-
-            self.render(req, .{
+            self.renderTemplate(req, .{
                 .encrypt = encrypt,
                 .label = label,
                 .text = text,
-                .result = encoded_str,
+                .result = result,
             }) catch return;
+
+            return;
         }
-
-        if (decrypt) {
-            var r = self.sym.C_DecryptInit.?(self.session_handle, &mechanism, o);
-            if (r != C.CKR_OK) std.log.debug("DecryptInit failed: {}", .{r});
-
-            const data = self.allocator.alloc(u8, text.len) catch return;
-            defer self.allocator.free(data);
-
-            const data_str = std.fmt.hexToBytes(data, text) catch return;
-
-            var buf_len: c_ulong = data_str.len;
-            var buf = self.allocator.alloc(u8, buf_len) catch return;
-            defer self.allocator.free(buf);
-
-            r = self.sym.C_Decrypt.?(self.session_handle, &data_str[0], data_str.len, &buf[0], &buf_len);
-            if (r != C.CKR_OK) std.log.debug("Decrypt failed: {}", .{r});
-
-            self.render(req, .{
-                .decrypt = decrypt,
-                .label = label,
-                .text = text,
-                .result = buf[0..buf_len],
-            }) catch return;
-        }
-    } else {
-        self.render(req, .{
-            .encrypt = encrypt,
-            .decrypt = decrypt,
-            .label = label,
-            .text = text,
-        }) catch return;
     }
+
+    self.renderTemplate(req, .{
+        .encrypt = encrypt,
+        .label = label,
+        .text = text,
+    }) catch return;
+}
+
+fn encryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object: C.CK_OBJECT_HANDLE) ![]const u8 {
+    var r = self.sym.C_EncryptInit.?(self.session_handle, mechanism, object);
+    if (r != C.CKR_OK) return error.EncryptInitFailed;
+
+    const data = try self.allocator.dupeZ(u8, text);
+    defer self.allocator.free(data);
+
+    var buf_len: c_ulong = data.len * 2;
+    var buf = try self.allocator.alloc(u8, buf_len);
+    defer self.allocator.free(buf);
+
+    r = self.sym.C_Encrypt.?(self.session_handle, data, data.len, &buf[0], &buf_len);
+    if (r != C.CKR_OK) return error.EncryptFailed;
+
+    const encoded_buf = try self.allocator.alloc(u8, buf_len * 2);
+
+    const formatter = std.fmt.fmtSliceHexLower(buf[0..buf_len]);
+    return try std.fmt.bufPrint(encoded_buf, "{s}", .{formatter});
+}
+
+fn decryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object: C.CK_OBJECT_HANDLE) ![]const u8 {
+    var r = self.sym.C_DecryptInit.?(self.session_handle, mechanism, object);
+    if (r != C.CKR_OK) return error.DecryptInitFailed;
+
+    const data = try self.allocator.alloc(u8, text.len);
+    defer self.allocator.free(data);
+
+    const data_str = try std.fmt.hexToBytes(data, text);
+
+    var buf = try self.allocator.alloc(u8, data_str.len);
+    defer self.allocator.free(buf);
+
+    var buf_len: c_ulong = data_str.len;
+    r = self.sym.C_Decrypt.?(self.session_handle, &data_str[0], data_str.len, &buf[0], &buf_len);
+    if (r != C.CKR_OK) return error.DecryptFailed;
+
+    return try self.allocator.dupe(u8, buf[0..buf_len]);
 }
 
 fn formParam(self: *Self, req: zap.Request, name: []const u8) ![]const u8 {
@@ -172,7 +177,7 @@ fn findKey(self: *Self, label: []const u8) !?C.CK_OBJECT_HANDLE {
     return if (n == 1) o else null;
 }
 
-fn render(self: *Self, req: zap.Request, state: anytype) !void {
+fn renderTemplate(self: *Self, req: zap.Request, state: anytype) !void {
     const ret = self.template.build(state);
     defer ret.deinit();
 
