@@ -13,6 +13,8 @@ sym: *C.CK_FUNCTION_LIST,
 session_handle: C.CK_SESSION_HANDLE,
 template: zap.Mustache,
 
+// Initializes a PKCS#11 session, logs in with the provided user PIN,
+// and prepares a Mustache template for later use.
 pub fn init(allocator: std.mem.Allocator, sym: *C.CK_FUNCTION_LIST, slot_id: usize, pin: []const u8) !Self {
     var args: C.CK_C_INITIALIZE_ARGS = .{ .flags = C.CKF_OS_LOCKING_OK };
     var r = sym.C_Initialize.?(&args);
