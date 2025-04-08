@@ -134,7 +134,7 @@ fn encryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object
     }
 
     const encoded_buf = try self.allocator.alloc(u8, std.base64.standard.Encoder.calcSize(buf_len));
-    return std.base64.standard.Encoder.encode(encoded_buf, buf[0..buf_len]);
+    return std.base64.standard.Encoder.encode(encoded_buf, buf);
 }
 
 fn decryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object: C.CK_OBJECT_HANDLE) ![]const u8 {
@@ -150,23 +150,15 @@ fn decryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object
 
     try std.base64.standard.Decoder.decode(data, text);
 
-    var buf_len: c_ulong = 0;
-    r = self.sym.C_Decrypt.?(self.session_handle, &data[0], data_len, 0, &buf_len);
+    var buf_len: c_ulong = data_len;
+    // data and buf can point to the same location.
+    r = self.sym.C_Decrypt.?(self.session_handle, &data[0], data_len, &data[0], &buf_len);
     if (r != C.CKR_OK) {
         std.log.debug("C_Decrypt failed: {}", .{r});
         return error.DecryptFailed;
     }
 
-    var buf = try self.allocator.alloc(u8, buf_len);
-    defer self.allocator.free(buf);
-
-    r = self.sym.C_Decrypt.?(self.session_handle, &data[0], data_len, &buf[0], &buf_len);
-    if (r != C.CKR_OK) {
-        std.log.debug("C_Decrypt failed: {}", .{r});
-        return error.DecryptFailed;
-    }
-
-    return try self.allocator.dupe(u8, buf[0..buf_len]);
+    return try self.allocator.dupe(u8, data[0..buf_len]);
 }
 
 fn formParam(self: *Self, req: zap.Request, name: []const u8) ![]const u8 {
