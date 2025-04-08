@@ -49,6 +49,7 @@ pub fn init(allocator: std.mem.Allocator, sym: *C.CK_FUNCTION_LIST, slot_id: usi
     };
 }
 
+// Cleans up the PKCS#11 session by logging out and closing the session.
 pub fn deinit(self: *Self) void {
     var r = self.sym.C_Logout.?(self.session_handle);
     if (r != C.CKR_OK) std.log.debug("C_Logout failed: {}", .{r});
@@ -59,54 +60,51 @@ pub fn deinit(self: *Self) void {
     self.session_handle = 0;
 }
 
-pub fn getIndex(self: *Self, req: zap.Request) void {
-    self.renderTemplate(req, .{
+pub fn getIndex(self: *Self, req: zap.Request) !void {
+    try self.renderTemplate(req, .{
         .encrypt = true,
-    }) catch return;
+    });
 }
 
-pub fn postAction(self: *Self, req: zap.Request) void {
-    req.parseBody() catch return;
+pub fn postAction(self: *Self, req: zap.Request) !void {
+    try req.parseBody();
 
-    const function = self.formParam(req, "function") catch return;
-    const label = self.formParam(req, "label") catch return;
-    const text = self.formParam(req, "text") catch return;
+    const function = try self.formParam(req, "function");
+    const label = try self.formParam(req, "label");
+    const text = try self.formParam(req, "text");
 
     const encrypt = std.mem.eql(u8, function, "encrypt");
 
-    if (label.len > 0 and text.len > 0) {
-        const object = self.findKey(label) catch return;
-        if (object) |o| {
-            const iv = self.allocator.alloc(u8, 16) catch return;
-            defer self.allocator.free(iv);
+    const object = try self.findKey(label);
+    if (object) |o| {
+        const iv = try self.allocator.alloc(u8, 16);
+        defer self.allocator.free(iv);
 
-            var mechanism: C.CK_MECHANISM = .{
-                .mechanism = C.CKM_AES_CBC_PAD,
-                .pParameter = &iv[0],
-                .ulParameterLen = iv.len,
-            };
+        var mechanism: C.CK_MECHANISM = .{
+            .mechanism = C.CKM_AES_CBC_PAD,
+            .pParameter = &iv[0],
+            .ulParameterLen = iv.len,
+        };
 
-            const result: []const u8 = if (encrypt)
-                self.encryptText(text, &mechanism, o) catch return
-            else
-                self.decryptText(text, &mechanism, o) catch return;
-            defer self.allocator.free(result);
+        const result: []const u8 = if (encrypt)
+            try self.encryptText(text, &mechanism, o)
+        else
+            try self.decryptText(text, &mechanism, o);
+        defer self.allocator.free(result);
 
-            self.renderTemplate(req, .{
-                .encrypt = encrypt,
-                .label = label,
-                .text = text,
-                .result = result,
-            }) catch return;
-            return;
-        }
+        return try self.renderTemplate(req, .{
+            .encrypt = encrypt,
+            .label = label,
+            .text = text,
+            .result = result,
+        });
     }
 
-    self.renderTemplate(req, .{
+    return try self.renderTemplate(req, .{
         .encrypt = encrypt,
         .label = label,
         .text = text,
-    }) catch return;
+    });
 }
 
 fn encryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object: C.CK_OBJECT_HANDLE) ![]const u8 {
@@ -119,7 +117,13 @@ fn encryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object
     const data = try self.allocator.dupeZ(u8, text);
     defer self.allocator.free(data);
 
-    var buf_len: c_ulong = data.len * 2;
+    var buf_len: c_ulong = 0;
+    r = self.sym.C_Encrypt.?(self.session_handle, data, data.len, 0, &buf_len);
+    if (r != C.CKR_OK) {
+        std.log.debug("C_Encrypt failed: {}", .{r});
+        return error.EncryptFailed;
+    }
+
     var buf = try self.allocator.alloc(u8, buf_len);
     defer self.allocator.free(buf);
 
@@ -129,10 +133,8 @@ fn encryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object
         return error.EncryptFailed;
     }
 
-    const encoded_buf = try self.allocator.alloc(u8, buf_len * 2);
-
-    const formatter = std.fmt.fmtSliceHexLower(buf[0..buf_len]);
-    return try std.fmt.bufPrint(encoded_buf, "{s}", .{formatter});
+    const encoded_buf = try self.allocator.alloc(u8, std.base64.standard.Encoder.calcSize(buf_len));
+    return std.base64.standard.Encoder.encode(encoded_buf, buf[0..buf_len]);
 }
 
 fn decryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object: C.CK_OBJECT_HANDLE) ![]const u8 {
@@ -142,16 +144,23 @@ fn decryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object
         return error.DecryptInitFailed;
     }
 
-    const data = try self.allocator.alloc(u8, text.len);
+    const data_len = try std.base64.standard.Decoder.calcSizeForSlice(text);
+    const data = try self.allocator.alloc(u8, data_len);
     defer self.allocator.free(data);
 
-    const data_str = try std.fmt.hexToBytes(data, text);
+    try std.base64.standard.Decoder.decode(data, text);
 
-    var buf = try self.allocator.alloc(u8, data_str.len);
+    var buf_len: c_ulong = 0;
+    r = self.sym.C_Decrypt.?(self.session_handle, &data[0], data_len, 0, &buf_len);
+    if (r != C.CKR_OK) {
+        std.log.debug("C_Decrypt failed: {}", .{r});
+        return error.DecryptFailed;
+    }
+
+    var buf = try self.allocator.alloc(u8, buf_len);
     defer self.allocator.free(buf);
 
-    var buf_len: c_ulong = data_str.len;
-    r = self.sym.C_Decrypt.?(self.session_handle, &data_str[0], data_str.len, &buf[0], &buf_len);
+    r = self.sym.C_Decrypt.?(self.session_handle, &data[0], data_len, &buf[0], &buf_len);
     if (r != C.CKR_OK) {
         std.log.debug("C_Decrypt failed: {}", .{r});
         return error.DecryptFailed;
