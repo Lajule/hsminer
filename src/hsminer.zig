@@ -6,6 +6,13 @@ const zap = @import("zap");
 
 const index = @embedFile("index.mustache");
 
+const State = struct {
+    encrypt: bool,
+    label: []const u8,
+    text: []const u8,
+    result: []const u8,
+};
+
 const Self = @This();
 
 allocator: std.mem.Allocator,
@@ -51,7 +58,7 @@ pub fn init(allocator: std.mem.Allocator, sym: *C.CK_FUNCTION_LIST, slot_id: usi
 
 pub fn deinit(self: *Self) void {
     var r = self.sym.C_Logout.?(self.session_handle);
-    if (r != C.CKR_OK) std.log.debug("Logout failed: {}", .{r});
+    if (r != C.CKR_OK) std.log.debug("C_Logout failed: {}", .{r});
 
     r = self.sym.C_CloseSession.?(self.session_handle);
     if (r != C.CKR_OK) std.log.debug("CloseSession failed: {}", .{r});
@@ -62,6 +69,9 @@ pub fn deinit(self: *Self) void {
 pub fn getIndex(self: *Self, req: zap.Request) void {
     self.renderTemplate(req, .{
         .encrypt = true,
+        .label = "",
+        .text = "",
+        .result = "",
     }) catch return;
 }
 
@@ -72,6 +82,7 @@ pub fn postAction(self: *Self, req: zap.Request) void {
     const label = self.formParam(req, "label") catch return;
     const text = self.formParam(req, "text") catch return;
 
+    var state: ?State = null;
     const encrypt = std.mem.eql(u8, function, "encrypt");
 
     if (label.len > 0 and text.len > 0) {
@@ -86,32 +97,31 @@ pub fn postAction(self: *Self, req: zap.Request) void {
                 .ulParameterLen = iv.len,
             };
 
-            var result: []const u8 = undefined;
-
-            if (encrypt) {
-                result = self.encryptText(text, &mechanism, o) catch return;
-            } else {
-                result = self.decryptText(text, &mechanism, o) catch return;
-            }
-
+            const result: []const u8 = if (encrypt)
+                self.encryptText(text, &mechanism, o) catch return
+            else
+                self.decryptText(text, &mechanism, o) catch return;
             defer self.allocator.free(result);
 
-            self.renderTemplate(req, .{
+            state = .{
                 .encrypt = encrypt,
                 .label = label,
                 .text = text,
                 .result = result,
-            }) catch return;
-
-            return;
+            };
         }
+    } else {
+        state = .{
+            .encrypt = encrypt,
+            .label = label,
+            .text = text,
+            .result = "",
+        };
     }
 
-    self.renderTemplate(req, .{
-        .encrypt = encrypt,
-        .label = label,
-        .text = text,
-    }) catch return;
+    if (state) |s| {
+        self.renderTemplate(req, s) catch return;
+    }
 }
 
 fn encryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object: C.CK_OBJECT_HANDLE) ![]const u8 {
@@ -203,15 +213,12 @@ fn findKey(self: *Self, label: []const u8) !?C.CK_OBJECT_HANDLE {
     return if (n == 1) o else null;
 }
 
-fn renderTemplate(self: *Self, req: zap.Request, state: anytype) !void {
+fn renderTemplate(self: *Self, req: zap.Request, state: State) !void {
     const ret = self.template.build(state);
     defer ret.deinit();
 
-    if (req.setContentType(.HTML)) {
-        if (ret.str()) |s| {
-            try req.sendBody(s);
-        }
-    } else |err| {
-        return err;
+    if (ret.str()) |s| {
+        try req.setContentType(.HTML);
+        try req.sendBody(s);
     }
 }
