@@ -166,7 +166,10 @@ fn decryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object
 // Retrieves a form parameter from an HTTP request by name.
 fn formParam(self: *Self, req: zap.Request, name: []const u8) ![]const u8 {
     const param = req.getParamStr(self.allocator, name, false) catch |err| return err;
-    if (param) |p| return p.str;
+    if (param) |p| {
+        // Avoid empty values.
+        return if (p.str.len > 0) p.str else error.EmptyParam;
+    }
     return error.UnknownParam;
 }
 
