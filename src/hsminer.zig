@@ -107,6 +107,7 @@ pub fn postAction(self: *Self, req: zap.Request) !void {
     });
 }
 
+// Encrypts a text buffer using a PKCS#11 mechanism and key object, and returns the result as a base64-encoded string.
 fn encryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object: C.CK_OBJECT_HANDLE) ![]const u8 {
     var r = self.sym.C_EncryptInit.?(self.session_handle, mechanism, object);
     if (r != C.CKR_OK) {
@@ -137,6 +138,7 @@ fn encryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object
     return std.base64.standard.Encoder.encode(encoded_buf, buf);
 }
 
+// Decrypts base64-encoded encrypted text using a PKCS#11 mechanism and key object.
 fn decryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object: C.CK_OBJECT_HANDLE) ![]const u8 {
     var r = self.sym.C_DecryptInit.?(self.session_handle, mechanism, object);
     if (r != C.CKR_OK) {
@@ -161,12 +163,14 @@ fn decryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object
     return try self.allocator.dupe(u8, data[0..buf_len]);
 }
 
+// Retrieves a form parameter from an HTTP request by name.
 fn formParam(self: *Self, req: zap.Request, name: []const u8) ![]const u8 {
     const param = req.getParamStr(self.allocator, name, false) catch |err| return err;
     if (param) |p| return p.str;
     return error.UnknownParam;
 }
 
+// Searches for a key by its label in the current session.
 fn findKey(self: *Self, label: []const u8) !?C.CK_OBJECT_HANDLE {
     const value = try self.allocator.dupeZ(u8, label);
     defer self.allocator.free(value);
@@ -199,6 +203,7 @@ fn findKey(self: *Self, label: []const u8) !?C.CK_OBJECT_HANDLE {
     return if (n == 1) o else null;
 }
 
+// Renders a Mustache template with the given state and sends it as an HTTP response.
 fn renderTemplate(self: *Self, req: zap.Request, state: anytype) !void {
     const ret = self.template.build(state);
     defer ret.deinit();
