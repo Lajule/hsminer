@@ -107,7 +107,8 @@ pub fn postAction(self: *Self, req: zap.Request) !void {
     });
 }
 
-// Encrypts a text buffer using a PKCS#11 mechanism and key object, and returns the result as a base64-encoded string.
+// Encrypts a text buffer using a PKCS#11 mechanism and key object, and returns
+// the result as a base64-encoded string.
 fn encryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object: C.CK_OBJECT_HANDLE) ![]const u8 {
     var r = self.sym.C_EncryptInit.?(self.session_handle, mechanism, object);
     if (r != C.CKR_OK) {
@@ -167,7 +168,7 @@ fn decryptText(self: *Self, text: []const u8, mechanism: *C.CK_MECHANISM, object
 fn formParam(self: *Self, req: zap.Request, name: []const u8) ![]const u8 {
     const param = req.getParamStr(self.allocator, name, false) catch |err| return err;
     if (param) |p| {
-        // Avoid empty values.
+        // avoid empty values.
         return if (p.str.len > 0) p.str else error.EmptyParam;
     }
     return error.UnknownParam;
