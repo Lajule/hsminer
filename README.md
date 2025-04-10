@@ -4,6 +4,32 @@
 
 ![HSMiner](https://github.com/Lajule/hsminer/blob/main/HSMiner.png)
 
+## Building hsminer
+
+Use Zig to build the project:
+
+```bash
+zig build
+```
+
+## Running hsminer
+
+Use Zig to build and run the project:
+
+```bash
+zig build run -- -c cert.pem -k key.pem /usr/lib/softhsm/libsofthsm2.so "${SLOT_ID}" 1234
+```
+
+### Command Arguments:
+
+- `-c cert.pem`: path to the certificate file.
+- `-k key.pem`: path to the private key file.
+- `/usr/lib/softhsm/libsofthsm2.so`: path to the PKCS#11 shared library.
+- `0`: slot ID.
+- `1234`: user PIN for the token.
+
+
+
 ## Prerequisites
 
 Make sure the following tools are installed on your system:
@@ -51,21 +77,6 @@ pkcs11-tool --module /usr/lib/softhsm/libsofthsm2.so --slot "${SLOT_ID}" --login
 
 This command creates a 256-bit AES key with the label `key 1` in the initialized slot.
 
-## Building and Running hsminer
-
-Use Zig to build and run the project:
-
-```bash
-zig build run -- -c cert.pem -k key.pem /usr/lib/softhsm/libsofthsm2.so "${SLOT_ID}" 1234
-```
-
-### Command Arguments:
-
-- `-c cert.pem`: path to the certificate file.
-- `-k key.pem`: path to the private key file.
-- `/usr/lib/softhsm/libsofthsm2.so`: path to the PKCS#11 shared library.
-- `0`: slot ID.
-- `1234`: user PIN for the token.
 
 ## Notes
 
@@ -78,9 +89,3 @@ zig build run -- -c cert.pem -k key.pem /usr/lib/softhsm/libsofthsm2.so "${SLOT_
 - [SoftHSM Documentation](https://www.opendnssec.org/softhsm/)
 - [PKCS#11 Specification](https://www.cryptsoft.com/pkcs11doc/)
 - [Zig Programming Language](https://ziglang.org/)
-
-```
-softhsm2-util --init-token --slot 0 --label "token 1" --so-pin 1234 --pin 1234
-pkcs11-tool --module /usr/lib/softhsm/libsofthsm2.so --slot 1864893542 --login --pin 1234 --keygen --key-type aes:32 --label "key 1"
-zig build run -- -c cert.pem -k key.pem /usr/lib/softhsm/libsofthsm2.so 1864893542 1234
-```
