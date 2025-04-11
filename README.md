@@ -8,7 +8,7 @@
 
 Use Zig to build the project:
 
-```bash
+```sh
 zig build
 ```
 
@@ -16,41 +16,32 @@ zig build
 
 Use Zig to build and run the project:
 
-```bash
+```sh
 zig build run -- -c cert.pem -k key.pem /usr/lib/softhsm/libsofthsm2.so "${SLOT_ID}" 1234
+```
+
+or HSMiner binary:
+
+```sh
+./hsminer -c cert.pem -k key.pem /usr/lib/softhsm/libsofthsm2.so "${SLOT_ID}" 1234
 ```
 
 ### Command Arguments:
 
-- `-c cert.pem`: path to the certificate file.
-- `-k key.pem`: path to the private key file.
-- `/usr/lib/softhsm/libsofthsm2.so`: path to the PKCS#11 shared library.
-- `0`: slot ID.
-- `1234`: user PIN for the token.
+- -h, --help         Display this help and exit.
+- -c, --cert <str>   Path to certificat file.
+- -k, --key <str>    Path to key file.
+- -p, --port <usize> Port.
+- <str>              Path to PKCS11 module.
+- <usize>            Slot identifier.
+- <str>              Pin (4-255).
 
 
-
-## Prerequisites
-
-Make sure the following tools are installed on your system:
-
-- **OpenSSL** – for generating self-signed certificates.
-- **SoftHSM** – a software-based HSM that supports PKCS#11.
-- **pkcs11-tool** – a command-line utility to interact with PKCS#11 modules.
-- **Zig** – the programming language used to build and run this project.
-
-### Installation Links
-
-- [OpenSSL](https://www.openssl.org/)
-- [SoftHSM](https://www.opendnssec.org/softhsm/)
-- [OpenSC (pkcs11-tool)](https://github.com/OpenSC/OpenSC/wiki)
-- [Zig Language](https://ziglang.org/download/)
-
-## Generating Certificate and Key
+### Generating Certificate and Key
 
 Before running `hsminer`, generate a self-signed certificate and a private key:
 
-```bash
+```sh
 openssl req -x509 -nodes -days 365 -sha256 -newkey rsa:2048 -keyout key.pem -out cert.pem
 ```
 
@@ -59,17 +50,13 @@ This creates:
 - `key.pem`: the private key.
 - `cert.pem`: the matching self-signed certificate.
 
-## Initializing the HSM (SoftHSM)
-
-Use SoftHSM to initialize a token and generate an AES key.
-
-### Step 1 – Initialize the Token
+### Initialize the Token
 
 ```sh
 softhsm2-util --init-token --free --label "HSMiner" --so-pin 1234 --pin 1234
 ```
 
-### Step 2 – Generate a Key
+### Generate a Key
 
 ```bash
 pkcs11-tool --module /usr/lib/softhsm/libsofthsm2.so --slot "${SLOT_ID}" --login --pin 1234 --keygen --key-type aes:32 --label "key 1"
@@ -77,6 +64,23 @@ pkcs11-tool --module /usr/lib/softhsm/libsofthsm2.so --slot "${SLOT_ID}" --login
 
 This command creates a 256-bit AES key with the label `key 1` in the initialized slot.
 
+Make sure the following tools are installed on your system:
+
+- **OpenSSL** – for generating self-signed certificates.
+- **SoftHSM** – a software-based HSM that supports PKCS#11.
+- **pkcs11-tool** – a command-line utility to interact with PKCS#11 modules.
+- **Zig** – the programming language used to build and run this project.
+
+
+
+
+
+## Installation Links
+
+- [OpenSSL](https://www.openssl.org/)
+- [SoftHSM](https://www.opendnssec.org/softhsm/)
+- [OpenSC (pkcs11-tool)](https://github.com/OpenSC/OpenSC/wiki)
+- [Zig Language](https://ziglang.org/download/)
 
 ## Notes
 
