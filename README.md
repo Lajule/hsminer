@@ -17,13 +17,13 @@ zig build
 Use Zig to build and run the project:
 
 ```sh
-zig build run -- -c cert.pem -k key.pem /usr/lib/softhsm/libsofthsm2.so "${SLOT_ID}" 1234
+zig build run -- -c cert.pem -k key.pem /usr/lib/softhsm/libsofthsm2.so "${SLOT_ID}" "${PIN}"
 ```
 
 or HSMiner binary:
 
 ```sh
-./hsminer -c cert.pem -k key.pem /usr/lib/softhsm/libsofthsm2.so "${SLOT_ID}" 1234
+./hsminer -c cert.pem -k key.pem /usr/lib/softhsm/libsofthsm2.so "${SLOT_ID}" "${PIN}"
 ```
 
 ### Command Arguments:
@@ -31,7 +31,7 @@ or HSMiner binary:
 - -h, --help         Display this help and exit.
 - -c, --cert <str>   Path to certificat file.
 - -k, --key <str>    Path to key file.
-- -p, --port <usize> Port.
+- -p, --port <usize> Listening port.
 - <str>              Path to PKCS11 module.
 - <usize>            Slot identifier.
 - <str>              Pin (4-255).

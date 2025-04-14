@@ -61,7 +61,7 @@ pub fn main() !void {
         \\-h, --help         Display this help and exit.
         \\-c, --cert <str>   Path to certificat file.
         \\-k, --key <str>    Path to key file.
-        \\-p, --port <usize> Port.
+        \\-p, --port <usize> Listening port.
         \\<str>              Path to PKCS11 module.
         \\<usize>            Slot identifier.
         \\<str>              Pin (4-255).
