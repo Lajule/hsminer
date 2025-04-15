@@ -36,6 +36,26 @@ or HSMiner binary:
 - <usize>            Slot identifier.
 - <str>              Pin (4-255).
 
+#### Enviroment
+
+Make sure the following tools are installed on your system:
+
+- **OpenSSL** – for generating self-signed certificates.
+- **SoftHSM** – a software-based HSM that supports PKCS#11.
+- **pkcs11-tool** – a command-line utility to interact with PKCS#11 modules.
+- **Zig** – the programming language used to build and run this project.
+
+Or build a docker image with:
+
+```sh
+docker build -t hsminer .
+```
+
+And run it with:
+
+```sh
+docker run -it --rm -p 3000:3000 -v "${PWD}":/hsminer -v "${PWD}"/tokens:/var/lib/softhsm/tokens -w /hsminer hsminer bash
+```
 
 ### Generating Certificate and Key
 
@@ -63,30 +83,6 @@ pkcs11-tool --module /usr/lib/softhsm/libsofthsm2.so --slot "${SLOT_ID}" --login
 ```
 
 This command creates a 256-bit AES key with the label `key 1` in the initialized slot.
-
-Make sure the following tools are installed on your system:
-
-- **OpenSSL** – for generating self-signed certificates.
-- **SoftHSM** – a software-based HSM that supports PKCS#11.
-- **pkcs11-tool** – a command-line utility to interact with PKCS#11 modules.
-- **Zig** – the programming language used to build and run this project.
-
-
-
-
-
-## Installation Links
-
-- [OpenSSL](https://www.openssl.org/)
-- [SoftHSM](https://www.opendnssec.org/softhsm/)
-- [OpenSC (pkcs11-tool)](https://github.com/OpenSC/OpenSC/wiki)
-- [Zig Language](https://ziglang.org/download/)
-
-## Notes
-
-- Make sure paths to certificates and PKCS#11 module are valid for your OS and setup.
-- Replace PINs and labels with secure values in production environments.
-- This project is intended for demonstration or prototyping purposes — always review security best practices when handling cryptographic operations.
 
 ## Resources
 
