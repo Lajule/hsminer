@@ -20,7 +20,7 @@ Use Zig to build and run the project:
 zig build run -- -c cert.pem -k key.pem /usr/lib/softhsm/libsofthsm2.so "${SLOT_ID}" "${PIN}"
 ```
 
-or HSMiner binary:
+or HSMiner binary directly:
 
 ```sh
 ./hsminer -c cert.pem -k key.pem /usr/lib/softhsm/libsofthsm2.so "${SLOT_ID}" "${PIN}"

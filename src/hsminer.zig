@@ -60,12 +60,14 @@ pub fn deinit(self: *Self) void {
     self.session_handle = 0;
 }
 
+// Handles a GET request to the index page.
 pub fn getIndex(self: *Self, req: zap.Request) !void {
     try self.renderTemplate(req, .{
         .encrypt = true,
     });
 }
 
+// Handles a POST request to perform an encryption or decryption action.
 pub fn postAction(self: *Self, req: zap.Request) !void {
     try req.parseBody();
 
