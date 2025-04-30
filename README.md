@@ -73,13 +73,13 @@ This creates:
 ### Initialize the Token
 
 ```sh
-softhsm2-util --init-token --free --label "HSMiner" --so-pin 1234 --pin 1234
+softhsm2-util --init-token --free --label "HSMiner" --so-pin "${PIN}" --pin "${PIN}"
 ```
 
 ### Generate a Key
 
 ```bash
-pkcs11-tool --module /usr/lib/softhsm/libsofthsm2.so --slot "${SLOT_ID}" --login --pin 1234 --keygen --key-type aes:32 --label "key 1"
+pkcs11-tool --module /usr/lib/softhsm/libsofthsm2.so --slot "${SLOT_ID}" --login --pin "${PIN}" --keygen --key-type aes:32 --label "key 1"
 ```
 
 This command creates a 256-bit AES key with the label `key 1` in the initialized slot.
